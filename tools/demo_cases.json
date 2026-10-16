@@ -1,7 +1,0 @@
-[
-  {"id": "1", "query": "最近的新闻", "expected_keywords": ["新闻"], "category": "新闻"},
-  {"id": "2", "query": "播放音乐", "expected_keywords": [], "category": "音乐"},
-  {"id": "3", "query": "L2 是什么意思", "expected_keywords": ["L2"], "category": "通用"},
-  {"id": "4", "query": "画一只猫", "expected_keywords": ["生成符合描述的图片"], "category": "生图"},
-  {"id": "5", "query": "导航去公司", "expected_keywords": [], "category": "导航"}
-]

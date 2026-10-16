@@ -1,3 +1,0 @@
-# CarTest — 行尾约定（防 Linux 侧误改导致 Windows cmd 解析断裂）
-*.bat text eol=crlf
-*.cmd text eol=crlf
