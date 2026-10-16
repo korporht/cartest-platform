@@ -1,0 +1,32 @@
+# ============ 运行产物 ============
+__pycache__/
+*.pyc
+*.pyo
+*.log
+# 测试夹具例外（T28/TIMA 真实日志截段，2026-10-09）
+!tests/fixtures/*.log
+
+logs/
+reports/
+runs/
+data/*
+!data/cases/
+# 预置项目档案进版本控制（t28/tima…）；s*.json 为用户方案文件，忽略
+!data/projects/
+data/projects/s*.json
+settings.json
+
+# 触控映射预览图缓存（touch_tab.py 运行时生成，mtime 缓存，非测试基线）
+__snapshots__/
+
+# ============ 临时/中间文件 ============
+*.tmp
+*.bak
+*_commit_msg.txt
+_MEI*/
+build/
+dist/
+archive/
+
+# ============ 设计陪跑（brainstorm 视觉伴侣会话）============
+.superpowers/

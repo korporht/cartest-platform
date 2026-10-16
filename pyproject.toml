@@ -1,0 +1,33 @@
+[project]
+name = "cartest"
+version = "0.1.0"
+description = "CarTest — 车机测试平台内核与流水线"
+requires-python = ">=3.11"
+dependencies = [
+    "openpyxl>=3.1",
+    "flet>=0.85,<0.86",
+]
+
+[project.optional-dependencies]
+# 录屏/截图/日志导出（screen_recorder / log_tab / shot 等按需导入）
+recorder = [
+    "pillow",
+    "numpy",
+    "opencv-python",
+    "sounddevice",
+    "soundfile",
+    "mss",
+    "pygetwindow",
+    "pywin32; sys_platform == 'win32'",
+    "imageio-ffmpeg",
+]
+# GUI 端到端（tools/gui_e2e.py 需 playwright）
+e2e = ["playwright"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["cartest*"]

@@ -1,0 +1,5 @@
+[
+  {"id": "B01", "query": "导航去公司", "expected_keywords": ["导航"], "category": "导航", "priority": "P1", "remark": "台架小样本（L3 验证）"},
+  {"id": "B02", "query": "打开空调", "expected_keywords": ["空调"], "category": "车控", "priority": "P1", "remark": "台架小样本（L3 验证）"},
+  {"id": "B03", "query": "播放音乐", "expected_keywords": ["音乐"], "category": "媒体", "priority": "P1", "remark": "台架小样本（L3 验证）"}
+]

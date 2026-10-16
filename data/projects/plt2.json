@@ -1,0 +1,45 @@
+{
+  "key": "plt2",
+  "name": "PLT2",
+  "log": {
+    "pull_paths": [
+      {
+        "path": "/log/android/",
+        "alias": "Android",
+        "enabled": true
+      }
+    ],
+    "file_glob": [
+      "logcat.txt",
+      "*.txt.gz"
+    ],
+    "reply_fragments": true,
+    "settle_flush": false,
+    "size_paths": [
+      {
+        "path": "/log/android/",
+        "alias": "Android",
+        "enabled": true
+      }
+    ]
+  },
+  "judge": {
+    "deny_pattern": "大模型拒识|pk_type[\"']?\\s*[:=]\\s*[\"']?cbm_denial|domain\\s*=\\s*\\[cbm_denial\\]",
+    "timeout": 30
+  },
+  "device": {
+    "serial": "641e23b",
+    "alias": "PLT2",
+    "voice_packages": [
+      "com.iflytek.autofly.platformservice",
+      "com.iflytek.autofly.sceneengine",
+      "com.iflytek.cutefly.speechclient.hmi",
+      "com.iflytek.autofly.carcontroladapter",
+      "com.example.carvoice"
+    ],
+    "services": []
+  },
+  "extract": {
+    "enabled": false
+  }
+}
