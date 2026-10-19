@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """P3c-2 验收 — 日志终端去开关（源码断言 + import 自检）
 
-设计依据：08-P3c设计.md 用户裁决 ⑦（接受移除「含 SYS1 / 含 SYS2」两开关）。
+设计依据：08-P3c设计.md 用户裁决 ⑦（接受移除「含 AIOS / 含 DLT」两开关）。
 
 用法:
     python tests/test_wiring_log_tab.py
@@ -31,8 +31,8 @@ def main() -> int:
 
     check("无 mnt_aios 引用", "mnt_aios" not in SRC)
     check("无 mnt_dlt 引用", "mnt_dlt" not in SRC)
-    check("无「含 SYS1」文案", "含 SYS1" not in SRC)
-    check("无「含 SYS2」文案", "含 SYS2" not in SRC)
+    check("无「含 AIOS」文案", "含 AIOS" not in SRC)
+    check("无「含 DLT」文案", "含 DLT" not in SRC)
     check("clear_logs 无参调用", "self._adb.clear_logs()" in SRC)
     check("pull_logs 新签名调用（本地目录可配置）",
           "self._adb.pull_logs(base, ts)" in SRC

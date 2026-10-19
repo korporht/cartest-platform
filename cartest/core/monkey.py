@@ -8,7 +8,7 @@
 
 设计依据：``19-Monkey压测集成设计.md``。
 
-设备协议（自 start_com.example.carvoice.bat 提取）：
+设备协议（自 start_com.lioncarmind.car.bat 提取）：
     部署 → push 三件套；启动 → nohup monkey_runner.sh；状态 → lock/done/status/pid；
     停止 → pid kill + 清锁；拉取 → dropbox/monkey_output/logcat/traces；分析 → 子进程。
 """

@@ -108,9 +108,9 @@ def main() -> int:
     res5 = j5.judge(_case("导航去公司"))
     check("拒识 reason 随档案", "本项目路由拒识" in res5.reason, res5.reason)
 
-    project.set_active("plt1")
+    project.set_active("e0v")
     j6 = jm.Judger()
-    check("切回 plt1 后规则复原（缓存已失效）",
+    check("切回 e0v 后规则复原（缓存已失效）",
           j6._deny_re.pattern == jm.DEFAULT_DENY_PATTERN)  # noqa: SLF001
 
     # ── [5] 配置页 schema ──
@@ -128,18 +128,18 @@ def main() -> int:
           == project.profile_value("judge.deny_pattern"))
 
     # ── [6] 缓存与失效 ──
-    a = project.load("plt1")
-    c = project.load("plt1")
+    a = project.load("e0v")
+    c = project.load("e0v")
     check("同 mtime 复用同一对象（缓存生效）", a is c)
     alt2 = project.builtin_profile()
-    alt2.update({"key": "plt1", "name": "PLT1 改名"})
-    project.save("plt1", alt2)
+    alt2.update({"key": "e0v", "name": "E0V 改名"})
+    project.save("e0v", alt2)
     check("save 后缓存失效（读到新 name）",
-          project.load("plt1")["name"] == "PLT1 改名")
-    # 复原 plt1 名称，避免影响生产档案
+          project.load("e0v")["name"] == "E0V 改名")
+    # 复原 e0v 名称，避免影响生产档案
     orig = project.builtin_profile()
-    orig["name"] = "PLT1"
-    project.save("plt1", orig)
+    orig["name"] = "E0V 奇瑞"
+    project.save("e0v", orig)
 
     print()
     print("=" * 70)

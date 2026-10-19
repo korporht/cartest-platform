@@ -122,27 +122,27 @@ def main() -> int:
         print("\n[4] 项目联动（alias / 监听器）")
         proj = tmp / "projects"
         proj.mkdir(parents=True, exist_ok=True)
-        (proj / "plt2.json").write_text(json.dumps({
-            "key": "plt2", "name": "PLT2（测试台架）",
-            "device": {"serial": "DEV-PLT2", "alias": "PLT2X"}}, ensure_ascii=False),
+        (proj / "t28.json").write_text(json.dumps({
+            "key": "t28", "name": "T28（测试台架）",
+            "device": {"serial": "DEV-T28", "alias": "T28X"}}, ensure_ascii=False),
             encoding="utf-8")
         (proj / "t2.json").write_text(json.dumps({
             "key": "t2", "name": "T2（无别名）",
             "device": {"serial": "DEV-T2"}}, ensure_ascii=False), encoding="utf-8")
         check("alias 命中（device.alias 优先）",
-              project.alias_for_serial("DEV-PLT2") == "PLT2X")
+              project.alias_for_serial("DEV-T28") == "T28X")
         check("alias 回退 name 前缀", project.alias_for_serial("DEV-T2") == "T2")
         check("未命中返回空串", project.alias_for_serial("DEV-NONE") == "")
 
         events: list[str] = []
         project.add_active_listener(events.append)
         try:
-            project.set_active("plt2")
-            check("set_active 触发监听", events == ["plt2"], str(events))
-            project.set_active("plt2")
-            check("重复 set 不触发", events == ["plt2"], str(events))
+            project.set_active("t28")
+            check("set_active 触发监听", events == ["t28"], str(events))
+            project.set_active("t28")
+            check("重复 set 不触发", events == ["t28"], str(events))
             project.set_active("t2")
-            check("再切换再触发", events == ["plt2", "t2"], str(events))
+            check("再切换再触发", events == ["t28", "t2"], str(events))
         finally:
             project.remove_active_listener(events.append)
 

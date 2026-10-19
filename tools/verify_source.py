@@ -21,7 +21,7 @@ from pathlib import Path
 from _legacy import require as _require_legacy   # noqa: E402  同目录定位器
 CVT_DIR = _require_legacy("CarVoiceTestTool")     # 缺失时打印 [SKIP] 并退出 0
 CARTEST_DIR = Path(__file__).resolve().parents[1]
-CASE_FILE = CVT_DIR / "data" / "PLT1第4轮_AI新闻_语音灌入用例.json"
+CASE_FILE = CVT_DIR / "data" / "E0V第4轮_AI新闻_语音灌入用例.json"
 
 PASS, FAIL = "[PASS]", "[FAIL]"
 _results: list[tuple[bool, str]] = []

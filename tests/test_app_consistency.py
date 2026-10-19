@@ -100,8 +100,8 @@ def main() -> int:
     cli_dir.mkdir()
     gui_dir.mkdir()
 
-    # 环境隔离（2026-10-10）：断言以「内置 plt1 默认」为前提——
-    # 断开真实 settings.json 与项目档案，免受本机多平台切换（plt2/plt3）影响
+    # 环境隔离（2026-10-10）：断言以「内置 e0v 默认」为前提——
+    # 断开真实 settings.json 与项目档案，免受本机多平台切换（t28/t1ma）影响
     from cartest.core import config_center as _cc
     from cartest.core import project as _pj
     _iso = base / "iso"

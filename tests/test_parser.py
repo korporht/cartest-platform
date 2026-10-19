@@ -184,7 +184,7 @@ def test_match_replies():
     res3 = p.match_replies(results3, replies3)
     check("超 30s 窗口 → 不匹配", not res3[0].reply)
 
-    # 抢配场景（2026-10-10，PLT2 真机错位修复）：同 query 两条记录
+    # 抢配场景（2026-10-10，T28 真机错位修复）：同 query 两条记录
     # ——ASR（无 sid）在前 + CBM（有 sid）在后；自己的回复时间比"他人的"更近，
     # 旧逻辑下 ASR 记录会先以"时间最近"抢走自己的回复、CBM 只能捡错配；
     # 修复后 CBM 经 **sid 全局配对**先锁定自己的回复。

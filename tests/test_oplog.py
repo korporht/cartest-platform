@@ -82,7 +82,7 @@ def main() -> int:
             if level != "raw" or not detail:
                 check(f"噪音判定 {noise!r}", False, f"→ {level}/{detail}")
         check("噪音行 → raw + detail", True)
-        level, _, detail = oplog.parse_legacy("  /la_log/voicecontrol: 23M")
+        level, _, detail = oplog.parse_legacy("  /la_log/vstgloballogcontrol: 23M")
         check("关键无前缀行 → info 可见（不误藏）", level == "info" and not detail)
         level, _, detail = oplog.parse_legacy("Remount succeeded")
         check("结果行（Remount succeeded）不列噪音", level == "info" and not detail)

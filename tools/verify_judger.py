@@ -132,8 +132,8 @@ def main() -> int:
 
     sys.path.insert(0, str(CVT_DIR))
     sys.path.insert(0, str(CARTEST_DIR))
-    # 环境隔离（2026-10-10）：对照以「内置 plt1 默认」为前提——
-    # 断开真实 settings.json 与项目档案，免受本机多平台切换（plt2/plt3）影响
+    # 环境隔离（2026-10-10）：对照以「内置 e0v 默认」为前提——
+    # 断开真实 settings.json 与项目档案，免受本机多平台切换（t28/t1ma）影响
     import tempfile as _tf
     from cartest.core import config_center as _cc
     from cartest.core import project as _pj

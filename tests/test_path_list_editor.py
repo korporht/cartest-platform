@@ -27,8 +27,8 @@ def main() -> int:
     print("=" * 70)
 
     base = [
-        {"path": "/data/log/voice/", "alias": "Android", "enabled": True},
-        {"path": "/mnt/log/sys1/", "alias": "SYS1", "enabled": False},
+        {"path": "/la_log/vstgloballogcontrol/", "alias": "Android", "enabled": True},
+        {"path": "/mnt/log/AIOS/", "alias": "AIOS", "enabled": False},
     ]
 
     print("\n[1] 初始往返一致")

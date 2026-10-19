@@ -12,7 +12,7 @@ from ...core import config as _platform
 ADB_TIMEOUT = 300
 # 旧值冻结引用（P3c-2 起消费方改读 config_center；此常量仅供跨层对照测试，
 # 见 tests/test_config_center.py，勿在业务代码中引用）
-REMOTE_LOG_PATH = "/data/log/voice/"
+REMOTE_LOG_PATH = "/la_log/vstgloballogcontrol/"
 REMOTE_SCREENSHOT_TMP = "/sdcard/screenshot_tmp.png"
 
 # 本地保存（平台数据目录；原为 flet_Tool/car_logs）——**工具偏好 / 历史文件**用

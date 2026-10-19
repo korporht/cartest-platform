@@ -39,7 +39,7 @@ def check(name, cond, extra=""):
 def test_make_run_id():
     print("[1] make_run_id")
     t = time.mktime((2026, 9, 15, 14, 30, 0, 0, 0, -1))
-    rid = make_run_id("PLT1第4轮_AI新闻_语音灌入用例.json", now=t)
+    rid = make_run_id("E0V第4轮_AI新闻_语音灌入用例.json", now=t)
     check("含日期时间前缀（精确到秒）", rid.startswith("2026-09-15_143000_"), rid)
     check("含用例名简述", "AI新闻" in rid, rid)
 

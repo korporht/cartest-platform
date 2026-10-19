@@ -32,8 +32,16 @@ TYPE_TEXTAREA = "textarea"     # 多行文本 → list[str]（一行一词；关
 TYPE_TAGS = "tags"             # 标签式列表（可点删的胶囊 + 回车添加；关键词首选）
 
 # ── 默认值（= 旧硬编码值，逐字节一致；由 tests/test_config_center.py 钉死）──
-_DEFAULT_PULL_PATHS: list[dict] = []
-_DEFAULT_SIZE_PATHS: list[dict] = []
+_DEFAULT_PULL_PATHS: list[dict] = [
+    {"path": _config.LOG_REMOTE_DIR, "alias": "Android", "enabled": True},
+    {"path": "/mnt/log/AIOS/", "alias": "AIOS", "enabled": False},
+    {"path": "/mnt/log/DLT/", "alias": "DLT", "enabled": False},
+]
+_DEFAULT_SIZE_PATHS: list[dict] = [
+    {"path": _config.LOG_REMOTE_DIR, "alias": "Android", "enabled": True},
+    {"path": "/mnt/log/AIOS/", "alias": "AIOS", "enabled": True},
+    {"path": "/mnt/log/DLT/", "alias": "DLT", "enabled": True},
+]
 
 #: **本地输出根目录**默认值（2026-10-12 用户裁决：不填＝工具所在目录下 ``logs/``）
 #: ``APP_DIR`` 开发时＝项目根、打包后＝exe 所在目录（``config._resolve_dirs``）。
@@ -93,7 +101,7 @@ SCHEMA: list[dict] = [
     {
         "group": "车机应用",
         "label": "设备别名",
-        "desc": "顶栏设备胶囊显示的名字（如 PLT2 / PLT3）。留空＝跟随项目档案的 "
+        "desc": "顶栏设备胶囊显示的名字（如 T28 / T1MA）。留空＝跟随项目档案的 "
                 "device.alias；档案也没有则取项目名括号前段。改完保存，顶栏即时更新",
         "key": "project.device.alias",
         "type": TYPE_TEXT,
@@ -191,7 +199,7 @@ PROJECT_PREFIX = "project."
 
 def _profile_default(key: str):
     """档案兜底：``project.*`` 键剥前缀取档案值；**非 project. 键按同路径取**
-    （如 ``log.pull_paths`` 对应档案 ``log.pull_paths`` 字段——PLT2/PLT3 平台路径随档案）
+    （如 ``log.pull_paths`` 对应档案 ``log.pull_paths`` 字段——T28/T1MA 平台路径随档案）
 
     延迟导入避免 core 内循环。
     """

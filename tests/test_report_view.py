@@ -41,7 +41,7 @@ SAMPLE = {
                  "cbm_tool_pk_type": "cbm_semantic", "logid_time": "", "logid": "",
                  "traceId": "t-56", "reqMessageId": "", "reply": ""},
                 {"source_file": "main_00211.gz", "query_time": "2026-09-10 16:04:40.956",
-                 "query": "零跑C11和PLT1比", "sid": "wgw000bc54f", "domain": "其他技能",
+                 "query": "零跑C11和E0V比", "sid": "wgw000bc54f", "domain": "其他技能",
                  "cbm_tool_pk_type": "cbm_agent", "logid_time": "2026-09-10 16:04:43.415",
                  "logid": "202609101604412BE96BBA", "traceId": "t-51", "reqMessageId": "",
                  "reply": "我无法查到该车型。"},
@@ -98,7 +98,7 @@ def main() -> int:
     rows = rp.iter_records(data)
     check("记录数 = cbm + bds", len(rows) == 3, str(len(rows)))
     check("按 query_time 升序（最早在前）",
-          [r["query"] for r in rows] == ["一位加班攀比烂", "零跑C11和PLT1比", "退出"],
+          [r["query"] for r in rows] == ["一位加班攀比烂", "零跑C11和E0V比", "退出"],
           str([r["query"] for r in rows]))
     check("补 source 标记", {r["source"] for r in rows} == {"cbm", "bds"})
     check("缺失字段补空串（不 KeyError）",

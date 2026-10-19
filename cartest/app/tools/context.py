@@ -53,7 +53,6 @@ _MODULE_BY_KEY: dict[str, str] = {
     "recorder": "屏幕与触控",
     "monkey": "Monkey",
     "logextract": "日志切割",
-    "testflow": "测试流程",
 }
 
 

@@ -106,7 +106,7 @@ class LogExtractTab(BaseTab):
             ft.Text("日志切割", size=14, weight=ft.FontWeight.BOLD,
                     color=t.c("text_primary")),
             ft.Text("按时间范围提取/切割车载日志：同流重叠选取 → 头尾按行时间切割 → "
-                    "统一输出 .gz（二进制 SYS2 整拷）", size=10, color=t.c("text_hint")),
+                    "统一输出 .gz（二进制 DLT 整拷）", size=10, color=t.c("text_hint")),
             ft.Row([self._source_field, self._browse_btn], spacing=8),
             ft.Row([self._date_field, self._time_field, self._range_field], spacing=8),
             ft.Row([self._output_field], spacing=8),

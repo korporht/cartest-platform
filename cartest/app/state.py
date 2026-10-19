@@ -95,8 +95,6 @@ class AppState:
 
         #: 当前页面 key（侧栏直切；标签工作区已按用户反馈移除，2026-09-16）
         self.active_page: str = "tool_logcat"
-        #: 测试流程页当前视图（pipeline/results/history；UI-4 T5）
-        self.active_view: str = "pipeline"
         #: 侧栏「最近运行」→ 结果页选中的运行（UI-3 消费）
         self.selected_run_id: str = ""
         #: 运行胶囊目标回调与去抖缓存（由 main.py 注册）
@@ -152,20 +150,13 @@ class AppState:
         self.last_running: bool = False
         #: 页面跳转回调：``fn(page_key: str) -> None``（由 main.py 注册）
         self.goto_page: Callable[[str], None] | None = None
+        #: 设备接入轮询的上次快照（2026-10-19：新设备接入自动选中+切方案）
+        self.polled_devices: set[str] = set()
         #: 打开「操作日志」抽屉回调：``fn() -> None``（由 main.py 装配后注册；
         #: 顶栏按钮经此调用，避免顶栏重建后闭包失效）
         self.open_activity: Callable[[], None] | None = None
-        #: 测试流程页视图切换回调：``fn(view: str) -> None``（由 testflow 页注册）
-        self.goto_view: Callable[[str], None] | None = None
         #: 重渲染当前页回调：``fn() -> None``（由 main.py 注册；配置页切方案后重载值用）
         self.refresh_page: Callable[[], None] | None = None
-
-    def nav_view(self, view: str) -> None:
-        """跳转测试流程视图（优先页内切换；回退旧页面跳转，兼容无壳场景）"""
-        if self.goto_view:
-            self.goto_view(view)
-        elif self.goto_page:
-            self.goto_page(view)
 
     # ── 便捷 ──────────────────────────────
     def reset_stages(self) -> None:

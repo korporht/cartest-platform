@@ -53,7 +53,7 @@ def msg_no_reply() -> str:
 def default_timeout() -> float:
     """判定超时**默认值**（项目档案 ``judge.timeout`` → ``DEFAULT_RESULT_TIMEOUT``）
 
-    2026-10-09 平台适配：PLT2/PLT3 连续注入排队延迟实测 20~28s+，档案设 30；
+    2026-10-09 平台适配：T28/T1MA 连续注入排队延迟实测 20~28s+，档案设 30；
     CLI/GUI 未显式传超时时统一从这里取（单一来源，勿在各消费点内联兜底）。
     """
     try:

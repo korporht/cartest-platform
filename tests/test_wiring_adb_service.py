@@ -5,7 +5,7 @@
   1) pull_logs 默认配置 → 与旧行为一致（1 条 pull，Android 目录）
   2) pull_logs 启用三项 → 3 条 pull（别名命名目录 logs_<ts>_<别名>）
   3) pull_logs 别名缺失 → 回退路径末段命名
-  4) clear_logs 默认只清主路径；启用 SYS1 → 追加清理
+  4) clear_logs 默认只清主路径；启用 AIOS → 追加清理
   5) check_log_size 按方案 log.size_paths 的启用项逐条 du（跳过未启用）
 
 注：日志路径自 2026-10-12 起**属于方案**（``project.log.*``），故这里经
@@ -75,25 +75,28 @@ def main() -> int:
     print("\n[1] pull_logs 默认配置（无 settings.json → schema 默认，仅主路径）")
     FakeADB.calls.clear()
     svc.pull_logs(str(base), "T1")
-    check("公开版：默认无抓取路径 → 不发起 pull", len(FakeADB.calls) == 0,
+    check("仅 1 条 pull", len(FakeADB.calls) == 1, str(FakeADB.calls))
+    check("pull 命令与旧行为一致",
+          FakeADB.calls[0] == f"adb pull /la_log/vstgloballogcontrol/ {base / 'logs_T1_Android'}",
           str(FakeADB.calls))
+    check("Android 目录已建", (base / "logs_T1_Android").is_dir())
 
     print("\n[2] pull_logs 启用三项（写方案值后立即生效）")
     set_paths("pull_paths", [
-        {"path": "/data/log/voice/", "alias": "Android", "enabled": True},
-        {"path": "/mnt/log/sys1/", "alias": "SYS1", "enabled": True},
-        {"path": "/mnt/log/sys2/", "alias": "SYS2", "enabled": True},
+        {"path": "/la_log/vstgloballogcontrol/", "alias": "Android", "enabled": True},
+        {"path": "/mnt/log/AIOS/", "alias": "AIOS", "enabled": True},
+        {"path": "/mnt/log/DLT/", "alias": "DLT", "enabled": True},
     ])
     FakeADB.calls.clear()
     logs.clear()
     svc.pull_logs(str(base), "T2")
     check("3 条 pull", len(FakeADB.calls) == 3, str(FakeADB.calls))
-    check("SYS1 目录按别名命名", (base / "logs_T2_SYS1").is_dir())
-    check("SYS2 目录按别名命名", (base / "logs_T2_SYS2").is_dir())
-    check("第 2 条 pull 指向 SYS1 路径",
-          FakeADB.calls[1] == f"adb pull /mnt/log/sys1/ {base / 'logs_T2_SYS1'}",
+    check("AIOS 目录按别名命名", (base / "logs_T2_AIOS").is_dir())
+    check("DLT 目录按别名命名", (base / "logs_T2_DLT").is_dir())
+    check("第 2 条 pull 指向 AIOS 路径",
+          FakeADB.calls[1] == f"adb pull /mnt/log/AIOS/ {base / 'logs_T2_AIOS'}",
           str(FakeADB.calls))
-    check("日志行含别名", "[INFO] 拉取 SYS1 日志…" in logs, str(logs))
+    check("日志行含别名", "[INFO] 拉取 AIOS 日志…" in logs, str(logs))
 
     print("\n[3] pull_logs 别名缺失 → 回退路径末段")
     set_paths("pull_paths", [
@@ -106,40 +109,40 @@ def main() -> int:
 
     print("\n[4] clear_logs 按启用项")
     set_paths("pull_paths", [
-        {"path": "/data/log/voice/", "alias": "Android", "enabled": True},
-        {"path": "/mnt/log/sys1/", "alias": "SYS1", "enabled": False},
+        {"path": "/la_log/vstgloballogcontrol/", "alias": "Android", "enabled": True},
+        {"path": "/mnt/log/AIOS/", "alias": "AIOS", "enabled": False},
     ])
     FakeADB.calls.clear()
     svc.clear_logs()
     check("未启用 → 只清主路径（与旧默认一致）",
-          FakeADB.calls == ["adb shell rm -rf /data/log/voice/*"],
+          FakeADB.calls == ["adb shell rm -rf /la_log/vstgloballogcontrol/*"],
           str(FakeADB.calls))
 
     set_paths("pull_paths", [
-        {"path": "/data/log/voice/", "alias": "Android", "enabled": True},
-        {"path": "/mnt/log/sys1/", "alias": "SYS1", "enabled": True},
+        {"path": "/la_log/vstgloballogcontrol/", "alias": "Android", "enabled": True},
+        {"path": "/mnt/log/AIOS/", "alias": "AIOS", "enabled": True},
     ])
     FakeADB.calls.clear()
     svc.clear_logs()
-    check("启用 SYS1 → 追加清理",
+    check("启用 AIOS → 追加清理",
           FakeADB.calls == [
-              "adb shell rm -rf /data/log/voice/*",
-              "adb shell rm -rf /mnt/log/sys1/*",
+              "adb shell rm -rf /la_log/vstgloballogcontrol/*",
+              "adb shell rm -rf /mnt/log/AIOS/*",
           ], str(FakeADB.calls))
 
     print("\n[5] check_log_size 按方案 log.size_paths 启用项")
     set_paths("size_paths", [
-        {"path": "/data/log/voice/", "alias": "Android", "enabled": True},
-        {"path": "/mnt/log/sys1/", "alias": "SYS1", "enabled": True},
-        {"path": "/mnt/log/sys2/", "alias": "SYS2", "enabled": False},
+        {"path": "/la_log/vstgloballogcontrol/", "alias": "Android", "enabled": True},
+        {"path": "/mnt/log/AIOS/", "alias": "AIOS", "enabled": True},
+        {"path": "/mnt/log/DLT/", "alias": "DLT", "enabled": False},
     ])
     FakeADB.calls.clear()
     svc.check_log_size()
     check("2 条 du（跳过未启用）", len(FakeADB.calls) == 2, str(FakeADB.calls))
     check("du 目标为前两条",
           FakeADB.calls == [
-              "adb shell du -sh /data/log/voice/",
-              "adb shell du -sh /mnt/log/sys1/",
+              "adb shell du -sh /la_log/vstgloballogcontrol/",
+              "adb shell du -sh /mnt/log/AIOS/",
           ], str(FakeADB.calls))
 
     print("\n[6] initialize 一键初始化连接（devices → root → remount）")

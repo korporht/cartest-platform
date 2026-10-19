@@ -29,7 +29,7 @@ def _bind_device_env(device: str) -> None:
 
     多设备在线时：裸 ``adb`` 命令按该变量路由；设备时钟查询
     （``_query_device_timestamp`` 无环境变量时回落到探测缓存=devices[0]）
-    也会落到该设备——否则 CLI 跑 PLT3 时时钟可能查的是 PLT2（静默错设备）。
+    也会落到该设备——否则 CLI 跑 T1MA 时时钟可能查的是 T28（静默错设备）。
     空值不动（尊重用户在 shell 里显式设置的值）。
     """
     dev = (device or "").strip()

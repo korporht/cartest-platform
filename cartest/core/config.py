@@ -148,11 +148,11 @@ VOICE_PACKAGES = [
     "com.iflytek.autofly.platformservice",
     "com.iflytek.autofly.sceneengine",
     "com.iflytek.autofly.vr",
-    "com.example.carvoice",
+    "com.lioncarmind.car",
 ]
 
 # 日志远程目录
-LOG_REMOTE_DIR = "/data/log/voice/"
+LOG_REMOTE_DIR = "/la_log/vstgloballogcontrol/"
 
 # ── 日志监控关键词 ────────────────────────────────────
 # 内容审核/评论拦截类（品牌正向引导策略）——下列两组共用
@@ -175,14 +175,14 @@ MONITOR_KEYWORDS = [
     "isssr", "issse", "asr", "tts", "scene", "intent",
     "voice", "speech", "iflytek", "autofly", "vr",
     "normal_text", "intent_type", "plugin_name",
-    "carvoice", "carvoice", "platformservice",
+    "lioncarmind", "carmind", "platformservice",
 ] + _AUDIT_KEYWORDS
 
 #: 全量落盘关键词（FullLogMonitor 使用；按小写包含匹配）
 FULL_LOG_KEYWORDS = [
     "ASS-", "SCENE-", "VoiceProcessor", "TtsServiceAgent",
     "isssr", "issse", "DataPointImpl", "AppUsageTracker",
-    "VisualizerManager", "carvoice", "CarVoice",
+    "VisualizerManager", "lioncarmind", "CarMind",
     "iflytek", "autofly", "vr", "speech", "asr", "tts",
     "PlatformService", "SceneEngine", "AgentAssistant",
     "MsManagerAdapter", "AIKIT", "CiatFunc",

@@ -46,7 +46,6 @@ def main() -> int:
     # ── [1] 源码口径 ──
     runner_src = (ROOT / "cartest" / "pipeline" / "runner.py").read_text(encoding="utf-8")
     state_src = (ROOT / "cartest" / "app" / "state.py").read_text(encoding="utf-8")
-    page_src = (ROOT / "cartest" / "app" / "pages" / "pipeline.py").read_text(encoding="utf-8")
 
     check("runner 阶段边界插暂停门", "gate.wait()" in runner_src
           and "def _execute_stages" in runner_src and "gate=None" in runner_src)
@@ -57,9 +56,9 @@ def main() -> int:
           state_src.split("def request_stop", 1)[1].split("\n    def ", 1)[0])
     check("流水线结束放行排队任务", state_src.count("device_queue.drain()") >= 2)
     check("启动/续跑拒绝非空队列", state_src.count("device_queue.pending()") >= 3)
-    check("pipeline 页三平级按钮（暂停/继续互斥）",
-          'ft.OutlinedButton("暂停"' in page_src and 'ft.FilledButton("继续"' in page_src
-          and "_sync_gate_buttons" in page_src)
+    # 2026-10-19：「测试流程」页删除 → 页内暂停/继续按钮断言移除；
+    # 暂停/继续能力仍在 core（runner gate）+ state（pause_pipeline/continue_pipeline），
+    # 由下方行为用例继续守护。
 
     # ── [2]/[3] runner 级行为 ──
     from cartest.pipeline import runner as runner_mod

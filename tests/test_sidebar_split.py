@@ -37,10 +37,10 @@ def main() -> int:
 
     check("单组「通用工具」（2026-10-12 取消「项目定制」分组）",
           list(groups) == ["通用工具"], str(list(groups)))
-    check("通用工具 8 项（2026-10-12 离线提取/单条灌入/测试流程并入）",
+    check("通用工具 7 项（2026-10-19 删除测试流程页）",
           groups["通用工具"] == ["tool_logcat", "tool_apptrans", "tool_screen",
                               "tool_monkey", "tool_logextract", "tool_offline",
-                              "tool_inject", "testflow"],
+                              "tool_inject"],
           str(groups["通用工具"]))
     check("dlogcat 仍未接入（保留待定）", "tool_dlogcat" not in m.PAGE_META)
     check("VR 日志已整页删除（2026-10-12 用户裁决）",

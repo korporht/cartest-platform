@@ -258,7 +258,7 @@ class AdbService:
 
     @staticmethod
     def _alias_of(item: dict) -> str:
-        """别名；留空时回退路径末段（如 ``/mnt/log/sys1/`` → ``SYS1``）。"""
+        """别名；留空时回退路径末段（如 ``/mnt/log/AIOS/`` → ``AIOS``）。"""
         alias = str(item.get("alias", "")).strip()
         if alias:
             return alias

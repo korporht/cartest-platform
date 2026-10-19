@@ -299,7 +299,7 @@ class FullLogMonitor:
                 "TtsServiceAgent:D", "TtsManager:D",
                 "ASS-SemixProcessor:I", "ASS-*",
                 "VoiceProcessor:D", "VoiceRecognition:D",
-                "carvoice:D", "CarVoice:D",
+                "lioncarmind:D", "CarMind:D",
                 "PlatformService:D", "SceneEngine:D",
                 "MsManagerAdapter:D", "AIKIT:D",
                 "iflytek*:D", "autofly*:D",

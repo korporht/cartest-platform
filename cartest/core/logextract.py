@@ -45,27 +45,27 @@ from . import config as _config
 # 注: 多段后缀（如 .dlt.gz）排在单段后缀（如 .gz）之前，避免误匹配
 # ============================================================
 TIMESTAMP_PATTERNS = [
-    # SYS1: aios_{seq}_YYYYMMDD-HHMMSS.dlt.gz（排在 .gz 之前）
+    # AIOS: aios_{seq}_YYYYMMDD-HHMMSS.dlt.gz（排在 .gz 之前）
     ('.dlt.gz', re.compile(
         r'^aios_\d{4}_(\d{8})-(\d{2})(\d{2})(\d{2})\.dlt\.gz$'
     ), '%Y%m%d'),
 
-    # SYS1: aios_{seq}_YYYYMMDD-HHMMSS.dlt（排在 .dlt 前）
+    # AIOS: aios_{seq}_YYYYMMDD-HHMMSS.dlt（排在 .dlt 前）
     ('.dlt', re.compile(
         r'^aios_\d{4}_(\d{8})-(\d{2})(\d{2})(\d{2})\.dlt$'
     ), '%Y%m%d'),
 
-    # Android/voicecontrol: {type}_{pid}_YYYY-MM-DD_HH-MM-SS(_latest)?.gz
+    # Android/vstgloballogcontrol: {type}_{pid}_YYYY-MM-DD_HH-MM-SS(_latest)?.gz
     ('.gz', re.compile(
         r'_(\d{4}-\d{2}-\d{2})_(\d{2})-(\d{2})-(\d{2})(?:_latest)?\.gz$'
     ), '%Y-%m-%d'),
 
-    # SYS2/DIM_Slog_Boot: {pid}_{seq}_last?_YYYY-MM-DD_HH-MM-SS.zip
+    # DLT/DIM_Slog_Boot: {pid}_{seq}_last?_YYYY-MM-DD_HH-MM-SS.zip
     ('.zip', re.compile(
         r'(?:_last_)?(\d{4}-\d{2}-\d{2})_(\d{2})-(\d{2})-(\d{2})\.zip$'
     ), '%Y-%m-%d'),
 
-    # SYS2/DIM: DIM_YYYY-MM-DD_HH-MM-SS_{seq}.log
+    # DLT/DIM: DIM_YYYY-MM-DD_HH-MM-SS_{seq}.log
     ('.log', re.compile(
         r'^DIM_(\d{4}-\d{2}-\d{2})_(\d{2})-(\d{2})-(\d{2})_\d{5}\.log$'
     ), '%Y-%m-%d'),
@@ -82,10 +82,10 @@ SUPPORTED_SUFFIXES = {'.gz', '.zip', '.log', '.dlt', '.dlt.gz'}
 # 行级时间戳（用于边界文件切割）
 # 与 log_preprocessor 保持一致，供本模块独立使用
 _LINE_TS_PATTERNS = [
-    # SYS2/DIM: 2026/07/29 12:24:42.440022
+    # DLT/DIM: 2026/07/29 12:24:42.440022
     (re.compile(r'(\d{4})/(\d{2})/(\d{2})\s+(\d{2}):(\d{2}):(\d{2})[.,](\d+)'),
      'slash'),
-    # SYS1 / 通用: 2026-07-29 12:24:42[.123]
+    # AIOS / 通用: 2026-07-29 12:24:42[.123]
     (re.compile(r'(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):(\d{2})(?:[.,](\d+))?'),
      'dash_full'),
     # Android: 07-29 12:24:24.310（需外部补年份）
@@ -325,7 +325,7 @@ def stream_key(filename):
     """
     name = filename
 
-    # SYS1: aios_{seq}_YYYYMMDD-HHMMSS.dlt[.gz]
+    # AIOS: aios_{seq}_YYYYMMDD-HHMMSS.dlt[.gz]
     m = re.match(r'^(aios)_\d{4}_\d{8}-\d{6}\.dlt(\.gz)?$', name, re.IGNORECASE)
     if m:
         return m.group(1).lower()
@@ -393,7 +393,7 @@ def open_log_text_stream(filepath):
 
 
 def is_probably_binary_dlt(filepath):
-    """粗略判断是否为二进制 SYS2（不可按行文本切割）"""
+    """粗略判断是否为二进制 DLT（不可按行文本切割）"""
     lower = filepath.lower()
     if lower.endswith('.dlt') or lower.endswith('.dlt.gz'):
         return True
@@ -749,7 +749,7 @@ def slice_log_file(src_path, dest_path, target_date,
     dest_path = ensure_gz_name(dest_path)
     os.makedirs(os.path.dirname(os.path.abspath(dest_path)) or '.', exist_ok=True)
 
-    # 二进制 SYS2 不按行切割，整文件重压缩
+    # 二进制 DLT 不按行切割，整文件重压缩
     if is_probably_binary_dlt(src_path):
         try:
             if src_path.lower().endswith('.gz'):
@@ -920,7 +920,7 @@ def apply_extraction(file_list, output_root, target_date,
             stats.binary_copied += 1
             stats.written.append((dest_path, rel, os.path.basename(dest_path)))
             if on_log is not None:
-                on_log('info', "           二进制 SYS2，已整拷")
+                on_log('info', "           二进制 DLT，已整拷")
         elif status == 'unfilterable':
             # 无行时间戳：无法按时段切割，默认跳过（避免拖入无关大文件）
             stats.unfilterable += 1
@@ -1162,7 +1162,7 @@ class LogExtractor:
         self._log('info', f"  整拷:     {stats.copied}")
         self._log('info', f"  已切割:   {stats.sliced} (保留 {stats.slice_lines} 行)")
         if stats.binary_copied:
-            self._log('info', f"  二进制SYS2: {stats.binary_copied} (整拷)")
+            self._log('info', f"  二进制DLT: {stats.binary_copied} (整拷)")
         if stats.unfilterable:
             self._log('info', f"  无行时间: {stats.unfilterable} (已跳过)")
         if stats.empty_slice:

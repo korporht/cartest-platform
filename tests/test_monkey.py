@@ -36,13 +36,13 @@ def main() -> int:
     # ── [1] 状态合成 ──
     st = mk.MonkeyStatus.from_files(
         lock=True, done=False,
-        status_text="RUNNING|2026-09-16 10:00:00|12000|300|com.example.carvoice",
+        status_text="RUNNING|2026-09-16 10:00:00|12000|300|com.lioncarmind.car",
         pid="12345")
     check("running：lock 优先", st.phase == "running", st.phase)
     check("status 行解析",
           st.pid == "12345" and st.started == "2026-09-16 10:00:00"
           and st.count == "12000" and st.throttle == "300"
-          and st.pkg == "com.example.carvoice",
+          and st.pkg == "com.lioncarmind.car",
           f"{st.pid}/{st.count}/{st.pkg}")
     check("done 状态", mk.MonkeyStatus.from_files(lock=False, done=True).phase == "done")
     check("idle 状态", mk.MonkeyStatus.from_files(lock=False, done=False).phase == "idle")

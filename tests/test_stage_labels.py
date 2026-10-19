@@ -42,13 +42,12 @@ def main() -> int:
     check("未知 key 原样回退", stage_label("custom_x") == "custom_x")
 
     # ── [2] 显示点接入 ──
-    page_src = (ROOT / "cartest" / "app" / "pages" / "pipeline.py").read_text(encoding="utf-8")
     main_src = (ROOT / "cartest" / "app" / "main.py").read_text(encoding="utf-8")
     state_src = (ROOT / "cartest" / "app" / "state.py").read_text(encoding="utf-8")
     runner_src = (ROOT / "cartest" / "pipeline" / "runner.py").read_text(encoding="utf-8")
 
-    check("pipeline 阶段条/阶段详情用 stage_label",
-          page_src.count("stage_label(s)") >= 2)
+    # 2026-10-19：「测试流程」页删除 → 页内阶段条断言移除；stage_label 仍由
+    # main 运行胶囊 / state 阶段日志 / runner 续跑提示三处消费（下方继续断言）
     check("main 运行胶囊用 stage_label", "stage_label(stage)" in main_src)
     check("state 阶段日志用 stage_label", "stage_label(stage)" in state_src)
     check("runner 续跑提示用 stage_label", "stage_label(start)" in runner_src)

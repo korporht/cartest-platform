@@ -92,7 +92,7 @@ def main() -> int:
 
         # ActivityLog 记录切换事件
         act = ActivityLog()
-        act.add(source="设备", action="已停止运行中任务并切换设备 → PLT1 — DEV2", ok=True)
+        act.add(source="设备", action="已停止运行中任务并切换设备 → E0V — DEV2", ok=True)
         items = act.items()
         check("ActivityLog 记录切换事件", len(items) == 1
               and "切换设备" in items[0].action and items[0].ok is True)

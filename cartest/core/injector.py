@@ -84,6 +84,7 @@ class Injector:
         self._mode = InjectMode.SEQUENTIAL
         self._interval = DEFAULT_INTERVAL
         self._result_timeout = DEFAULT_RESULT_TIMEOUT
+        self._voice_mode = 3          # VR getSemantic 的 mode 参数（默认 3＝语义直入）
         self._thread: threading.Thread | None = None
         self._device_id: str = ""
         self._log_q: queue.Queue = log_q if log_q is not None else queue.Queue(maxsize=1000)
@@ -195,6 +196,16 @@ class Injector:
 
     def set_device(self, device_id: str) -> None:
         self._device_id = device_id
+
+    def set_voice_mode(self, mode: int) -> None:
+        """VR ``getSemantic`` 的 ``mode`` 参数（2026-10-19：页面语义模式下拉接线）
+
+        默认 3（语义直入）。流水线不设置 → 保持 3，与改造前命令逐字节一致。
+        """
+        try:
+            self._voice_mode = int(mode)
+        except (TypeError, ValueError):
+            self._voice_mode = 3
 
     # ── 控制操作 ──────────────────────────────
     def start_batch(self, data: DataSource, mode: InjectMode = InjectMode.SEQUENTIAL,
@@ -326,7 +337,7 @@ class Injector:
             case.inject_time = time.strftime("%m-%d %H:%M:%S")
             send_start = time.time()
             ok, msg = self._adb_session().send_voice(
-                case.query, self._device_id, on_log=self._log)
+                case.query, self._device_id, mode=self._voice_mode, on_log=self._log)
             _ = send_start
 
             if not ok:

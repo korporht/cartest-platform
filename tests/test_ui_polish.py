@@ -19,7 +19,6 @@ sys.path.insert(0, str(ROOT))
 
 MAIN_SRC = (ROOT / "cartest" / "app" / "main.py").read_text(encoding="utf-8")
 SETTINGS_SRC = (ROOT / "cartest" / "app" / "pages" / "settings.py").read_text(encoding="utf-8")
-RESULTS_SRC = (ROOT / "cartest" / "app" / "pages" / "results.py").read_text(encoding="utf-8")
 CONTEXT_SRC = (ROOT / "cartest" / "app" / "tools" / "context.py").read_text(encoding="utf-8")
 LOGTAB_SRC = (ROOT / "cartest" / "app" / "tools" / "log_tab.py").read_text(encoding="utf-8")
 
@@ -53,8 +52,8 @@ def main() -> int:
           "content=ft.Column(groups, spacing=3, scroll=ft.ScrollMode.AUTO)" in MAIN_SRC)
 
     # ── [3] 抽屉动画（§7：150ms ease-out）──
-    check("抽屉 150ms 动画", "animate=ft.Animation(150" in RESULTS_SRC)
-    check("缓动 EASE_OUT", "EASE_OUT" in RESULTS_SRC)
+    # 2026-10-19：结果页（results.py）随「测试流程」模块一并删除 → 该页动画断言移除；
+    # 全局抽屉动画改由「操作日志/任务」面板继承（见 test_notify_done / test_batch4_tasks）。
 
     # ── [4] 配置页动作区（2026-10-15：取消「保存」按钮 → 改动即时落盘）──
     check("已无「保存」按钮（header 不含 save_btn）",

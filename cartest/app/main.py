@@ -12,6 +12,7 @@ from __future__ import annotations
 import asyncio
 import os
 import threading
+import time
 
 import flet as ft
 
@@ -41,8 +42,9 @@ def _register_project_listener(handler) -> None:
     project_mod.add_active_listener(handler)
 
 #: 侧栏导航（**单组「通用工具」**）
-#: 2026-10-12 用户裁决：删除「VR 日志采集」（整页移除）；「离线提取 / 单条灌入 /
-#: 测试流程」并入通用工具；取消「项目定制」分组。
+#: 2026-10-12 用户裁决：删除「VR 日志采集」（整页移除）；「离线提取 / 单条灌入」
+#: 并入通用工具；取消「项目定制」分组。
+#: 2026-10-19 用户裁决：删除「测试流程」页（三视图壳整页移除，见 pages/__init__.py）。
 PAGE_GROUPS: list[tuple[str, list[tuple]]] = [
     ("通用工具", [
         ("tool_logcat", ft.Icons.TERMINAL, "日志终端"),
@@ -52,7 +54,6 @@ PAGE_GROUPS: list[tuple[str, list[tuple]]] = [
         ("tool_logextract", ft.Icons.SCHEDULE, "日志切割"),
         ("tool_offline", ft.Icons.MANAGE_SEARCH, "对话还原"),
         ("tool_inject", ft.Icons.SEND, "语音灌入"),
-        ("testflow", ft.Icons.ROCKET_LAUNCH, "测试流程"),
     ]),
 ]
 
@@ -103,7 +104,7 @@ def main(page: ft.Page, *, state: AppState | None = None) -> None:
     state = state or AppState()
     state.log.append("GUI 会话已连接", "info")
 
-    # 32 号：旧版物化的 data/projects/plt1.json 让位给「默认（内置）」（幂等迁移）
+    # 32 号：旧版物化的 data/projects/e0v.json 让位给「默认（内置）」（幂等迁移）
     try:
         project_mod.migrate_builtin_file()
     except Exception:  # noqa: BLE001 - 迁移失败不影响启动
@@ -238,7 +239,7 @@ def main(page: ft.Page, *, state: AppState | None = None) -> None:
         state.log_target = None
         state.on_running_change = None
         state.tick_hooks = []
-        state.goto_view = None
+        state.goto_page = None
 
     def _render_content() -> None:
         key = state.active_page
@@ -296,6 +297,86 @@ def main(page: ft.Page, *, state: AppState | None = None) -> None:
         """轻提示（顶部浮层 Toast；未装配时回退 SnackBar）"""
         toast_ui.toast(page, text, ok, state.theme)
 
+    def _auto_scheme_for_device(dev: str) -> None:
+        """设备（切换/连接）→ 有绑定方案且与当前不同则自动切换配置方案
+
+        2026-10-19 用户诉求「配置自定义绑定设备，连接/切换到对应设备时能自动切换配置」。
+        防环：``set_active`` 的 listener（``_on_project_changed``）会尝试联动设备，
+        但当前设备已属于该方案时 listener 直接返回。
+        """
+        if not dev:
+            return
+        try:
+            bound = project_mod.scheme_for_device(dev)
+        except Exception:  # noqa: BLE001 - 绑定查询失败不影响设备切换
+            return
+        if not bound or bound == project_mod.active_key():
+            return
+        if not project_mod.set_active(bound):
+            return
+        name = bound
+        try:
+            name = next((p["name"] for p in project_mod.list_schemes()
+                         if p["key"] == bound), bound)
+        except Exception:  # noqa: BLE001
+            pass
+        state.log.append(f"已自动切换到方案「{name}」（设备 {dev} 绑定）", "info")
+        _snack(f"设备 {dev} 已绑定方案「{name}」，已自动切换")
+        try:
+            state.activity.add(source="设备",
+                               action=f"设备 {dev} → 自动切换方案「{name}」",
+                               ok=True)
+        except Exception:  # noqa: BLE001
+            pass
+        # 配置页正在显示 → 值整体重载（否则仍显示旧方案的值）
+        if state.active_page == SETTINGS_KEY:
+            hook = getattr(state, "refresh_page", None)
+            if callable(hook):
+                hook()
+
+    def _on_devices_polled(cur: list[str]) -> None:
+        """设备轮询结果（主线程）：顶栏同步 + 新接入设备自动接管
+
+        只在「当前无设备 / 当前设备离线」时自动选中——当前设备在线时不抢焦点
+        （用户可能正在用另一台设备跑任务）。
+        """
+        now = set(cur or [])
+        prev = state.polled_devices
+        state.polled_devices = now
+        _sync_device_ui()
+        new = now - prev
+        if not new:
+            return
+        if state.device and state.device in now:
+            return
+        ok, _why = state.can_switch_device()
+        if not ok:
+            return
+        for dev in sorted(new):
+            try:
+                bound = project_mod.scheme_for_device(dev)
+            except Exception:  # noqa: BLE001
+                continue
+            if not bound:
+                continue
+            if state.set_device(dev):
+                state.log.append(
+                    f"检测到设备接入：{dev}（已绑定方案），已自动选中", "info")
+                _auto_scheme_for_device(dev)
+            break
+
+    def _device_poll_loop() -> None:
+        """后台轮询设备接入（5s；adb 调用可能慢，不能在 UI 线程做）"""
+        while True:
+            time.sleep(5.0)
+            try:
+                if state.running:
+                    continue
+                cur = state.refresh_devices()
+            except Exception:  # noqa: BLE001
+                continue
+            _safe_on_main(page, lambda c=list(cur): _on_devices_polled(c))
+
     def _pick_device(dev: str) -> None:
         page.pop_dialog()
         if dev == state.device:
@@ -305,6 +386,7 @@ def main(page: ft.Page, *, state: AppState | None = None) -> None:
             if state.set_device(dev):
                 state.log.append(
                     f"已切换设备: {_device_label_text(dev).removeprefix('设备: ')}", "info")
+                _auto_scheme_for_device(dev)      # 2026-10-19：设备绑定方案 → 自动切
             return
         # 40 号 §六：不再默默拒绝——弹对话框，**首选「停止任务并切换」**
         def _do_stop_switch() -> None:
@@ -400,6 +482,7 @@ def main(page: ft.Page, *, state: AppState | None = None) -> None:
                   else serial if serial in devices else devices[0])
         state.set_device(target)
         _sync_device_ui()
+        _auto_scheme_for_device(target)           # 2026-10-19：启动恢复后按绑定切方案
 
     def _apply_project_device(serial: str) -> None:
         """随项目切换设备（主线程；离线也选中并标记——诚实不静默回退）"""
@@ -421,6 +504,14 @@ def main(page: ft.Page, *, state: AppState | None = None) -> None:
             serial = ""
         if not serial:
             return
+        # 2026-10-19：方案可绑多台设备——当前设备若也属于该方案，不抢切
+        # （否则 A 设备触发切方案时会被档案默认设备 B 抢走）
+        try:
+            if state.device and state.device != serial \
+                    and state.device in project_mod.scheme_devices(key):
+                return
+        except Exception:  # noqa: BLE001
+            pass
         _safe_on_main(page, lambda: _apply_project_device(serial))
 
     state.on_device_change = lambda dev: _sync_device_ui()
@@ -476,6 +567,9 @@ def main(page: ft.Page, *, state: AppState | None = None) -> None:
     _restore_device()
     _register_project_listener(_on_project_changed)
     _render_content()
+
+    # 2026-10-19：设备接入轮询（新设备有绑定方案 → 自动选中 + 切方案）
+    threading.Thread(target=_device_poll_loop, daemon=True).start()
 
     # ── 后台刷新循环（日志 + 运行胶囊 + 运行状态联动）──
     async def _tick() -> None:

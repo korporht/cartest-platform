@@ -72,9 +72,9 @@ FRAGMENT_SOURCES: tuple[str, ...] = ("tts_frag", "nlp_frag")
 
 
 class _ReplyStreamAggregator:
-    """流式回复分片聚合器（2026-10-09，PLT2/PLT3 平台适配）
+    """流式回复分片聚合器（2026-10-09，T28/T1MA 平台适配）
 
-    PLT2/PLT3 的回复为**双通道**流式分片（每片一行日志）：
+    T28/T1MA 的回复为**双通道**流式分片（每片一行日志）：
       · ``20204 nlp`` 正文（带 sid）——完整显示文本
       · ``ASS-TTSEngine appendText`` 播报（无 sid）——与正文同文本的播报切分
     "每片一条记录"会让回复匹配只命中一片；两通道混拼又会重叠错乱。因此：
@@ -150,8 +150,8 @@ class LogParser:
 
     def __init__(self, year: int | None = None, fragments: bool = False):
         self.year = year or datetime.now().year
-        # 流式分片提取开关（2026-10-09）：默认关＝PLT1 行为零漂移；
-        # PLT2/PLT3 由项目档案 log.reply_fragments=true 开启（模式7/8 + 聚合器）
+        # 流式分片提取开关（2026-10-09）：默认关＝E0V 行为零漂移；
+        # T28/T1MA 由项目档案 log.reply_fragments=true 开启（模式7/8 + 聚合器）
         self.fragments = bool(fragments)
         # CBM匹配窗口(秒)
         self.cbm_match_window = 10
@@ -260,7 +260,7 @@ class LogParser:
             if m:
                 return ReplyRecord(timestamp=ts, reply=m.group(1).strip(), source="bds")
 
-        # 模式7（2026-10-09，PLT2/PLT3，fragments 开关控制）: ASS-TTSEngine 流式播报分片
+        # 模式7（2026-10-09，T28/T1MA，fragments 开关控制）: ASS-TTSEngine 流式播报分片
         #   `ASS-TTSEngine: appendText() called with: text = [你好呀，], textState = [0]`
         #   textState: 0=首片 1=续片 2=流结束；产出 source="tts_frag" 交聚合器
         if self.fragments and 'ASS-TTSEngine: appendText()' in line:
@@ -270,13 +270,13 @@ class LogParser:
                                    sid="", source="tts_frag")
             return None
 
-        # 模式8（2026-10-09，PLT2/PLT3，fragments 开关控制）: 20204 nlp 流式正文分片（含 sid）
+        # 模式8（2026-10-09，T28/T1MA，fragments 开关控制）: 20204 nlp 流式正文分片（含 sid）
         #   `sparkSrResult srCode: [20204] ... "nlp":{"text":"片段"...},"header":{..."sid":"wgw..."}`
         #   锚定 `"nlp":{` 避免匹配 cbm_meta 转义串（\"nlp\" 前缀带反斜杠，不受影响）
         if self.fragments and 'sparkSrResult srCode: [20204]' in line:
             m = re.search(r'"nlp":\{"text":"((?:[^"\\]|\\.)*?)"', line)
             if m is None:
-                # 截断容错（2026-10-10 PLT3 真机）：超长文本会撞 logcat 单行长度上限
+                # 截断容错（2026-10-10 T1MA 真机）：超长文本会撞 logcat 单行长度上限
                 # 被物理截断（行尾戛然而止、无闭合引号）——降级提取行尾前的合法前缀，
                 # 避免整条长文本（如 cbm_tool_news 新闻列表）丢失
                 m = re.search(r'"nlp":\{"text":"((?:[^"\\]|\\.)*)', line)
@@ -441,7 +441,7 @@ class LogParser:
 
         两轮匹配（2026-10-10 增强）：
           **第一轮 sid 精确配对**——sid 是会话唯一标识，同 sid 的 query↔回复
-          即确定关联（不受窗口/顺序影响）。真机实测（PLT2 连续注入排队）发现：
+          即确定关联（不受窗口/顺序影响）。真机实测（T28 连续注入排队）发现：
           同 query 的多条记录（ASR 记录无 sid、且时间更早）会以"时间最近"抢走
           窗口内属于其他会话的回复，造成回复错位——先全局 sid 配对可根治。
           **第二轮 时间邻近**（未配对者）：维持原 30s 窗口 + 取最近逻辑不变。
@@ -512,7 +512,7 @@ def iter_log_files(log_dir: str, file_globs: list[str] | None = None) -> list[Pa
 
     ``file_globs=None`` → 默认 :data:`DEFAULT_FILE_GLOBS`（``main_*.log`` / ``main_*.gz``，
     与改造前"main_ 前缀 + .log/.gz 后缀"逐字等价）。
-    PLT2/PLT3 由项目档案 ``log.file_glob`` 提供（``["logcat.txt", "*.txt.gz"]``）。
+    T28/T1MA 由项目档案 ``log.file_glob`` 提供（``["logcat.txt", "*.txt.gz"]``）。
     大小写敏感（``fnmatchcase``）——与旧后缀判断行为一致。
     """
     globs = list(file_globs) if file_globs else list(DEFAULT_FILE_GLOBS)
@@ -531,8 +531,8 @@ def parse_logs(log_dir: str, file_globs: list[str] | None = None,
         log_dir:    日志目录（递归扫描）
         file_globs: 日志文件名匹配（默认 ``main_*.log`` / ``main_*.gz``，＝旧行为；
                     其他平台由项目档案 ``log.file_glob`` 提供）
-        fragments:  是否启用流式分片提取（模式7/8 + 聚合器；PLT2/PLT3 由档案
-                    ``log.reply_fragments`` 开启；默认关＝PLT1 行为零漂移）
+        fragments:  是否启用流式分片提取（模式7/8 + 聚合器；T28/T1MA 由档案
+                    ``log.reply_fragments`` 开启；默认关＝E0V 行为零漂移）
     """
     parser = LogParser(fragments=fragments)
 

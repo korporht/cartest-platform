@@ -61,7 +61,7 @@ def main() -> int:
     calls.clear()
     s.clean_logs()
     check("rm 用默认路径",
-          calls[-1] == ["adb", "shell", "rm", "-rf", "/data/log/voice/*"],
+          calls[-1] == ["adb", "shell", "rm", "-rf", "/la_log/vstgloballogcontrol/*"],
           str(calls[-1]))
 
     print("\n[2] 配置主路径 → clean_logs 用配置值")

@@ -46,7 +46,7 @@ class PipelineParams:
     case_file: str = ""
     device: str = ""
     interval: float = config.DEFAULT_INTERVAL
-    # 判定超时：默认走项目档案 judge.timeout（PLT2/PLT3 排队场景 30s），兜底 20s
+    # 判定超时：默认走项目档案 judge.timeout（T28/T1MA 排队场景 30s），兜底 20s
     timeout: float = field(default_factory=judge_default_timeout)
     resume_mode: str = "skip_executed"
     #: 起始序号（0-based，= 注入器 start_from）——第 N 条**之前**的用例本次不灌
@@ -54,7 +54,7 @@ class PipelineParams:
     start_index: int = 0
     extract_jobs: int | None = None
     settle_wait: float = 3.0          # 触发 flush 后等待落盘的秒数
-    voice_package: str = "com.example.carvoice"
+    voice_package: str = "com.lioncarmind.car"
 
     # 依赖注入（None = 用真实实现）
     adb: object | None = None
@@ -189,8 +189,8 @@ def stage_settle(ctx: RunContext, p: PipelineParams) -> str:
     不动其他产物。真实设备上同名文件即同一份日志，覆盖无副作用。
 
     **flush 策略随平台档案**（2026-10-10 真机事故）：
-      · PLT1（默认）：force-stop 主应用触发 voicecontrol 落盘
-      · PLT2/PLT3（``log.settle_flush=false``）：日志实时落盘，**不得 force-stop**——
+      · E0V（默认）：force-stop 主应用触发 vstgloballogcontrol 落盘
+      · T28/T1MA（``log.settle_flush=false``）：日志实时落盘，**不得 force-stop**——
         该平台主应用被 force-stop 后不自动复活，车机回落 Launcher、语音服务进入
         "输入法期间"拦截态，后续注入全部被拒（实测事故：整轮测试废弃 + 设备坏态）
     """
@@ -225,7 +225,7 @@ def stage_extract(ctx: RunContext, p: PipelineParams) -> str:
         return "无设备日志可提取（settle 未产出）"
 
     # 平台开关（项目档案 extract.enabled，默认 true 保持旧行为）：
-    # PLT2/PLT3 日志格式 CbmLogextractor 尚未适配（2026-10-09 实测：回复链 0/N），档案设 false
+    # T28/T1MA 日志格式 CbmLogextractor 尚未适配（2026-10-09 实测：回复链 0/N），档案设 false
     if not bool(project_mod.get("extract.enabled", True)):
         return "该平台未启用对话还原（项目档案 extract.enabled=false；CbmLogextractor 待适配）"
 
@@ -338,13 +338,13 @@ def _parse_device_logs(ctx: RunContext, log_fn=None) -> dict[str, dict]:
     避免后写记录把 CBM 的 domain/reply 覆盖为空。
 
     **时间窗过滤（2026-10-10 真机实测新增）**：device_logs 可能含历史归档
-    （PLT2 的 /log/android/logcat/ 拉取会带出多份 gz）——同 query 的历史记录
+    （T28 的 /log/android/logcat/ 拉取会带出多份 gz）——同 query 的历史记录
     经合并会污染本次结论（甚至用历史证据"翻案"）。只保留 run 创建之后
     （留 60s 余量防主机/设备时钟偏差）的记录。
 
-    平台档案（2026-10-09 PLT2/PLT3）：
-      · ``log.file_glob``        日志文件名匹配（默认 main_*.log/gz；PLT2: logcat.txt + *.txt.gz）
-      · ``log.reply_fragments``  流式分片回复提取（默认 false；PLT2: true）
+    平台档案（2026-10-09 T28/T1MA）：
+      · ``log.file_glob``        日志文件名匹配（默认 main_*.log/gz；T28: logcat.txt + *.txt.gz）
+      · ``log.reply_fragments``  流式分片回复提取（默认 false；T28: true）
     """
     if not ctx.device_logs_dir.is_dir():
         return {}

@@ -160,7 +160,7 @@ class FakeCC:
 class FakeProject:
     """替身配置方案模块（32 号：卡片 = 下拉 + 新增/重命名/删除 + 恢复默认）"""
 
-    BUILTIN_KEY = "plt1"
+    BUILTIN_KEY = "e0v"
     DEFAULT_LABEL = "默认（内置）"
     MAX_SCHEMES = 5
     saved_flat: list = []
@@ -175,11 +175,27 @@ class FakeProject:
 
     @staticmethod
     def active_key() -> str:
-        return "plt1"
+        return "e0v"
 
     @staticmethod
     def set_active(key: str) -> bool:
         return True
+
+    @staticmethod
+    def scheme_devices(key: str) -> list:      # noqa: ARG004 — 2026-10-19 设备绑定
+        return []
+
+    @staticmethod
+    def bind_device(key: str, serial: str):    # noqa: ANN201 — 设备绑定
+        return True, key
+
+    @staticmethod
+    def unbind_device(key: str, serial: str):  # noqa: ANN201 — 设备绑定
+        return True, key
+
+    @staticmethod
+    def alias_for_serial(serial: str) -> str:  # noqa: ARG004
+        return ""
 
     @staticmethod
     def create_scheme(name: str):  # noqa: ANN201
@@ -191,12 +207,12 @@ class FakeProject:
 
     @staticmethod
     def remove_scheme(key: str):  # noqa: ANN201
-        return True, "plt1"
+        return True, "e0v"
 
     @staticmethod
     def save_values(flat: dict):  # noqa: ANN201
         FakeProject.saved_flat.append(dict(flat))
-        return True, "plt1"
+        return True, "e0v"
 
     @staticmethod
     def projects_dir():  # noqa: ANN201

@@ -30,11 +30,11 @@ def main() -> int:
 
     from cartest.app.tools.apk_tab import ApkTab
 
-    expected = ('adb shell "dumpsys package com.example.cameraapp '
+    expected = ('adb shell "dumpsys package com.vst.chery.cameraapp '
                 "| grep -m1 -E 'versionName|Unable to find package'\"")
     check("命令构造：整串引号（管道在设备侧执行）",
-          ApkTab._version_cmd("com.example.cameraapp") == expected,
-          ApkTab._version_cmd("com.example.cameraapp"))
+          ApkTab._version_cmd("com.vst.chery.cameraapp") == expected,
+          ApkTab._version_cmd("com.vst.chery.cameraapp"))
 
     check("无旧「相机版本」按钮", "相机版本" not in SRC)
     check("无旧「相册版本」按钮", "相册版本" not in SRC)

@@ -25,7 +25,7 @@ from .services.monkey_service import MonkeyService
 
 log = logging.getLogger("monkey_tab")
 
-DEFAULT_PKG = "com.example.carvoice"
+DEFAULT_PKG = "com.lioncarmind.car"
 
 
 def default_package() -> str:

@@ -15,7 +15,7 @@
 
     from cartest.core import project
     uri = project.get("voice.inject_uri", VR_URI_BASE)   # 声明的 default 即内置兜底
-    project.set_active("plt1")
+    project.set_active("e0v")
 """
 from __future__ import annotations
 
@@ -36,13 +36,15 @@ __all__ = ["BUILTIN_KEY", "BUILTIN_SERVICES", "PROJECT_SCOPED_PREFS",
            "load", "active_key", "set_active", "save", "get", "profile_value",
            "alias_for_serial", "reset_scoped_prefs", "tools_dir",
            "add_active_listener", "remove_active_listener",
+           # 设备绑定（2026-10-19）：方案 ↔ 设备序列号
+           "scheme_devices", "scheme_for_device", "bind_device", "unbind_device",
            # 配置方案生命周期（2026-09-22）
            "MAX_SCHEMES", "DEFAULT_LABEL", "list_schemes", "scheme_count",
            "scheme_exists", "create_scheme", "rename_scheme", "remove_scheme",
            "builtin_value", "save_values"]
 
-#: 内置档案键（PLT1；无档案文件时即用它的值）
-BUILTIN_KEY = "plt1"
+#: 内置档案键（E0V 奇瑞；无档案文件时即用它的值）
+BUILTIN_KEY = "e0v"
 
 #: 默认项目档案目录（可用 :func:`set_projects_dir` 覆盖——测试隔离用）
 _PROJECTS_DIR: Path | None = None
@@ -76,24 +78,32 @@ def builtin_profile() -> dict:
     """内置档案（逐值等于 ``core/config.py`` 常量——无档案时行为不变）"""
     return {
         "key": BUILTIN_KEY,
-        "name": "PLT1（内置默认）",
+        "name": "E0V 奇瑞（内置默认）",
         "device": {
-            "main_package": "com.example.carvoice",          # = monkey_tab.DEFAULT_PKG
-            "voice_packages": [],                      # 公开版：接入时自填
-            "services": [],
+            "main_package": "com.lioncarmind.car",          # = monkey_tab.DEFAULT_PKG
+            "voice_packages": list(_config.VOICE_PACKAGES),
+            "services": copy.deepcopy(BUILTIN_SERVICES),
         },
         "voice": {
             "inject_uri": _config.VR_URI_BASE,
             "inject_mode": 3,
         },
         "log": {
-            "monitor_keywords": [],
-            "fulllog_keywords": [],
+            "monitor_keywords": list(_config.MONITOR_KEYWORDS),
+            "fulllog_keywords": list(_config.FULL_LOG_KEYWORDS),
             # 日志路径（2026-10-12 用户裁决：从 settings 覆盖键改为**方案值**）——
             # 值 = ``config_center._DEFAULT_PULL_PATHS`` / ``_DEFAULT_SIZE_PATHS``，
             # 两处不许漂移（tests/test_config_center.py 钉死）
-            "pull_paths": [],
-            "size_paths": [],
+            "pull_paths": [
+                {"path": _config.LOG_REMOTE_DIR, "alias": "Android", "enabled": True},
+                {"path": "/mnt/log/AIOS/", "alias": "AIOS", "enabled": False},
+                {"path": "/mnt/log/DLT/", "alias": "DLT", "enabled": False},
+            ],
+            "size_paths": [
+                {"path": _config.LOG_REMOTE_DIR, "alias": "Android", "enabled": True},
+                {"path": "/mnt/log/AIOS/", "alias": "AIOS", "enabled": True},
+                {"path": "/mnt/log/DLT/", "alias": "DLT", "enabled": True},
+            ],
         },
         # 判定规则与文案（代码兜底；值与 core/judger.py 的 DEFAULT_* 一致，
         # 由 tests/test_judge_rules.py 钉死"两处不许漂移"）
@@ -262,10 +272,10 @@ def remove_scheme(key: str) -> tuple[bool, str]:
 
 
 def migrate_builtin_file() -> str:
-    """一次性迁移：旧的物化 ``plt1.json`` 让位给「默认（内置）」（幂等，可每次启动调用）
+    """一次性迁移：旧的物化 ``e0v.json`` 让位给「默认（内置）」（幂等，可每次启动调用）
 
-    32 号起 ``plt1`` 专指"无方案时的内置回退态"。磁盘上若存在旧版物化的
-    ``plt1.json``：
+    32 号起 ``e0v`` 专指"无方案时的内置回退态"。磁盘上若存在旧版物化的
+    ``e0v.json``：
 
       · 与内置值**完全一致** → 直接删除（等价，回退内置）
       · 有真实差异 → 另存为 ``s<n>``（保留原 name），激活键跟着改（不丢用户数据）
@@ -459,7 +469,7 @@ PROJECT_SCOPED_PREFS: dict[str, list[str]] = {
 
 #: 与项目绑定的 **settings 覆盖键**（切项目时清掉）
 #: 语义＝"日志路径跟随项目"：本机微调过的路径若不清，会让项目档案里的
-#: ``log.pull_paths``（如 PLT2 的 /log/android/logcat/）形同虚设。
+#: ``log.pull_paths``（如 T28 的 /log/android/logcat/）形同虚设。
 #:
 #: 2026-10-12 变更：日志路径已改为**方案值**（``project.log.pull_paths`` / ``project.log.size_paths``
 #: ——保存写进方案文件，切换方案自然跟随）。本清单自此只承担**遗留迁移**：
@@ -584,18 +594,19 @@ def profile_value(path: str, default: Any = None) -> Any:
             node = node[part]
         else:
             return default
-    if node is None or node == "":
-        # 公开版：内置默认刻意清空（路径/应用/关键词为空列表）——
-        # 空列表/空 dict 是合法配置值，不得继续向下回退
+    if node in (None, "", [], {}):
         return default
     return node
 
 
 def alias_for_serial(serial: str) -> str:
-    """按设备序列号查项目别名（档案 ``device.serial`` 匹配；无匹配返回空串）
+    """按设备序列号查方案别名（``device.serials`` / ``device.serial`` 匹配；无匹配返回空串）
 
     别名优先取档案 ``device.alias``；回退 ``name`` 的括号前段
-    （如 ``"PLT2（vendor bench）"`` → ``"PLT2"``）。供顶栏设备胶囊显示。
+    （如 ``"T28（desaysv 8255 台架）"`` → ``"T28"``）。供顶栏设备胶囊显示。
+
+    2026-10-19：匹配范围从单值 ``device.serial`` 扩展到绑定列表
+    （:func:`scheme_devices`），支持一个方案绑定多台台架。
     """
     serial = str(serial or "").strip()
     if not serial:
@@ -603,18 +614,118 @@ def alias_for_serial(serial: str) -> str:
     for p in list_projects():
         key = str(p.get("key", ""))
         try:
+            if serial not in scheme_devices(key):
+                continue
             prof = load(key)
         except Exception:  # noqa: BLE001
             continue
         dev = prof.get("device", {}) if isinstance(prof, dict) else {}
-        if str(dev.get("serial", "") or "").strip() != serial:
-            continue
         alias = str(dev.get("alias", "") or "").strip()
         if not alias:
             name = str(prof.get("name", "") or key)
             alias = name.replace("（", "(").split("(")[0].strip()
         return alias or key
     return ""
+
+
+# ══════════════════════════════════════════════════════════════
+#  设备绑定（2026-10-19 用户诉求：连接/切换设备时自动切配置方案）
+#  「方案」＝ data/projects/<key>.json；绑定存在档案 ``device.serials``
+#  （列表，一台方案可绑多台台架）；``device.serial`` 保留为「默认设备」
+#  兼容字段（项目→设备联动与别名显示仍读它，取 serials[0]）。
+#  一设备只属一个方案：绑定时自动从其他方案移除。
+# ══════════════════════════════════════════════════════════════
+
+def scheme_devices(key: str) -> list[str]:
+    """方案的绑定设备列表（``device.serials`` ∪ 兼容单值 ``device.serial``）"""
+    try:
+        prof = load(str(key))
+    except Exception:  # noqa: BLE001
+        return []
+    dev = prof.get("device", {}) if isinstance(prof, dict) else {}
+    out: list[str] = []
+    raw = dev.get("serials")
+    if isinstance(raw, list):
+        out.extend(str(x).strip() for x in raw if str(x).strip())
+    single = str(dev.get("serial", "") or "").strip()
+    if single and single not in out:
+        out.append(single)
+    return out
+
+
+def scheme_for_device(serial: str) -> str:
+    """设备 → 绑定方案 key（无绑定返回 ``""``；只认方案文件，内置不参与）"""
+    serial = str(serial or "").strip()
+    if not serial:
+        return ""
+    for p in list_schemes():
+        try:
+            if serial in scheme_devices(p["key"]):
+                return str(p["key"])
+        except Exception:  # noqa: BLE001 - 单个方案损坏不影响其余
+            continue
+    return ""
+
+
+def _write_scheme_devices(key: str, serials: list[str]) -> bool:
+    """写回方案的设备绑定（``serials`` 列表 + ``serial`` 兼容首项）"""
+    path = projects_dir() / f"{key}.json"
+    data = _read_json(path) or {}
+    data.setdefault("key", key)
+    data.setdefault("name", key)
+    dev = data.get("device")
+    if not isinstance(dev, dict):
+        dev = {}
+    dev["serials"] = list(serials)
+    dev["serial"] = serials[0] if serials else ""
+    data["device"] = dev
+    return save(key, data)
+
+
+def bind_device(key: str, serial: str) -> tuple[bool, str]:
+    """把设备绑定到方案（一设备只属一个方案：先从其他方案移除）
+
+    返回 ``(ok, 说明)``。内置方案（无文件）不可绑定。
+    """
+    key = str(key)
+    serial = str(serial or "").strip()
+    if not serial:
+        return False, "设备序列号为空"
+    if not scheme_exists(key):
+        return False, "仅方案文件可绑定设备（内置方案请先新建方案）"
+
+    # 唯一性：同一设备从其他方案移除（避免一份配置抢两台/互相覆盖）
+    for p in list_schemes():
+        other = str(p["key"])
+        if other == key:
+            continue
+        try:
+            cur = scheme_devices(other)
+            if serial in cur:
+                _write_scheme_devices(other, [x for x in cur if x != serial])
+        except Exception:  # noqa: BLE001 - 清理失败不阻断主绑定
+            continue
+
+    cur = scheme_devices(key)
+    if serial not in cur:
+        cur.append(serial)
+    if not _write_scheme_devices(key, cur):
+        return False, "写入方案文件失败"
+    return True, key
+
+
+def unbind_device(key: str, serial: str) -> tuple[bool, str]:
+    """从方案解绑设备（不存在时视为成功——幂等）"""
+    key = str(key)
+    serial = str(serial or "").strip()
+    if not scheme_exists(key):
+        return False, "仅方案文件可解绑"
+    cur = scheme_devices(key)
+    if serial not in cur:
+        return True, key
+    if not _write_scheme_devices(key, [x for x in cur if x != serial]):
+        return False, "写入方案文件失败"
+    return True, key
 
 
 def get(path: str, default: Any = None) -> Any:

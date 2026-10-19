@@ -2,7 +2,7 @@
 """30/31 验收 — 项目档案 ProjectProfile（值级定制点外提；三层取值）
 
 覆盖：
-  [1] 内置档案 == core/config.py 常量（PLT1 默认，无档案时行为与改造前一致）
+  [1] 内置档案 == core/config.py 常量（E0V 默认，无档案时行为与改造前一致）
   [2] 三层取值：内置兜底 → 项目档案 → settings.json 覆盖（后者优先）
   [3] 换项目=换 JSON：写 alt.json 并激活 → 包名/URI/关键词随之变（不改代码）
   [4] 消费方接通：monkey 默认包名 / adb 灌入 URI+组件 / logcat 关键词随档案
@@ -45,13 +45,18 @@ def main() -> int:
     check("内置 profile key/name", b["key"] == project.BUILTIN_KEY and bool(b["name"]))
     check("内置 main_package == monkey 常量默认",
           project.get("device.main_package") in (b["device"]["main_package"],)
-          and b["device"]["main_package"] == "com.example.carvoice")
+          and b["device"]["main_package"] == "com.lioncarmind.car")
     check("内置 inject_uri == config.VR_URI_BASE",
           b["voice"]["inject_uri"] == config.VR_URI_BASE, b["voice"]["inject_uri"])
-    check("公开版：内置 voice_packages 清空", b["device"]["voice_packages"] == [])
-    check("公开版：内置 monitor_keywords 清空", b["log"]["monitor_keywords"] == [])
-    check("公开版：内置 fulllog_keywords 清空", b["log"]["fulllog_keywords"] == [])
-    check("公开版：内置 services 清空", b["device"]["services"] == [])
+    check("内置 voice_packages == config.VOICE_PACKAGES",
+          b["device"]["voice_packages"] == list(config.VOICE_PACKAGES))
+    check("内置 monitor_keywords == config.MONITOR_KEYWORDS",
+          b["log"]["monitor_keywords"] == list(config.MONITOR_KEYWORDS))
+    check("内置 fulllog_keywords == config.FULL_LOG_KEYWORDS",
+          b["log"]["fulllog_keywords"] == list(config.FULL_LOG_KEYWORDS))
+    check("内置 services 三段（语音引擎/场景引擎/VR 服务）",
+          [s["label"] for s in b["device"]["services"]]
+          == ["语音引擎", "场景引擎", "VR 服务"])
 
     # ── [2] 三层取值 ──
     check("无档案：get 回退内置", project.get("voice.inject_uri") == config.VR_URI_BASE)
@@ -66,17 +71,17 @@ def main() -> int:
     check("save(alt) 成功", project.save("alt", alt) is True)
     check("档案文件已落盘", (project.projects_dir() / "alt.json").is_file())
     check("list_projects 含 builtin + alt",
-          {p["key"] for p in project.list_projects()} >= {"plt1", "alt"})
+          {p["key"] for p in project.list_projects()} >= {"e0v", "alt"})
 
-    check("未激活时仍是内置值", project.get("device.main_package") == "com.example.carvoice")
+    check("未激活时仍是内置值", project.get("device.main_package") == "com.lioncarmind.car")
     check("set_active(alt) 成功", project.set_active("alt") is True)
     check("激活后 main_package 随档案变",
           project.get("device.main_package") == "com.example.alt")
     check("激活后 inject_uri 随档案变",
           project.get("voice.inject_uri") == "vr://com.example.alt/interaction/getSemantic")
     check("激活后关键词随档案变", project.get("log.monitor_keywords") == ["altkw"])
-    check("未覆盖字段仍取内置兜底（voice_packages，公开版=空）",
-          project.get("device.voice_packages") == [])
+    check("未覆盖字段仍取内置兜底（voice_packages）",
+          project.get("device.voice_packages") == list(config.VOICE_PACKAGES))
 
     # settings 覆盖（最高优先）
     config_center.set("project.voice.inject_uri", "vr://override/inject")
@@ -90,36 +95,36 @@ def main() -> int:
     check("monkey 默认包名来自档案",
           monkey_tab.default_package() == "com.example.alt", monkey_tab.default_package())
     check("monkey DEFAULT_PKG 常量仍在（兜底，向后兼容）",
-          monkey_tab.DEFAULT_PKG == "com.example.carvoice")
+          monkey_tab.DEFAULT_PKG == "com.lioncarmind.car")
 
     from cartest.core import adb
     check("adb 灌入 URI 来自档案",
           adb.voice_uri_base() == "vr://com.example.alt/interaction/getSemantic")
-    check("adb 语音包名来自档案（继承内置，公开版=空）",
-          adb.voice_packages() == [])
-    check("adb 语音服务组件来自档案（公开版=空）",
-          adb.service_starts() == [])
+    check("adb 语音包名来自档案（继承内置）",
+          adb.voice_packages() == list(config.VOICE_PACKAGES))
+    check("adb 语音服务组件来自档案",
+          [s[0] for s in adb.service_starts()] == ["语音引擎", "场景引擎", "VR 服务"])
 
     from cartest.core import logcat
     check("logcat 实时关键词来自档案", logcat.monitor_keywords() == ["altkw"])
-    check("logcat 全量关键词未覆盖 → 内置（公开版=空）",
-          logcat.fulllog_keywords() == [])
+    check("logcat 全量关键词未覆盖 → 内置",
+          logcat.fulllog_keywords() == list(config.FULL_LOG_KEYWORDS))
 
     # ── [6] 切项目清理项目相关工具偏好（真机验证发现的坑）──
     monkey_cfg = project.tools_dir() / "monkey_config.json"
     monkey_cfg.parent.mkdir(parents=True, exist_ok=True)
     monkey_cfg.write_text(json.dumps(
-        {"monkey_pkg": "com.example.carvoice", "monkey_count": "200"}), encoding="utf-8")
-    project.set_active("plt1")
+        {"monkey_pkg": "com.lioncarmind.car", "monkey_count": "200"}), encoding="utf-8")
+    project.set_active("e0v")
     project.set_active("alt")                       # 切换 → 应清掉 monkey_pkg
     left = json.loads(monkey_cfg.read_text(encoding="utf-8"))
     check("切项目清理 monkey_pkg（旧值不再挡住档案）", "monkey_pkg" not in left, str(left))
     check("非项目相关偏好保留（monkey_count）", left.get("monkey_count") == "200")
     monkey_cfg.write_text(json.dumps(
-        {"monkey_pkg": "com.example.carvoice"}), encoding="utf-8")
+        {"monkey_pkg": "com.lioncarmind.car"}), encoding="utf-8")
     project.set_active("alt")                       # 同项目再保存 → 不触发清理
     left2 = json.loads(monkey_cfg.read_text(encoding="utf-8"))
-    check("未切换项目时不清偏好", left2.get("monkey_pkg") == "com.example.carvoice")
+    check("未切换项目时不清偏好", left2.get("monkey_pkg") == "com.lioncarmind.car")
     check("reset_scoped_prefs 可直接调用（返回清理清单）",
           isinstance(project.reset_scoped_prefs(), list))
 
@@ -127,7 +132,7 @@ def main() -> int:
     (project.projects_dir() / "broken.json").write_text("{ not json", encoding="utf-8")
     project.set_active("broken")
     check("损坏档案 → 回退内置（不抛）",
-          project.get("device.main_package") == "com.example.carvoice")
+          project.get("device.main_package") == "com.lioncarmind.car")
     project.set_active("nonexistent")
     check("不存在项目 → 回退内置",
           project.get("voice.inject_uri") == config.VR_URI_BASE)

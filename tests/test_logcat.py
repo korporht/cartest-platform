@@ -27,8 +27,6 @@ from cartest.core.logcat import LogcatMonitor as LogMonitor           # noqa: E4
 
 FAILED = []
 MATCHING_LINE = "01-01 00:00:00.000  100  200 I isssr_log: cbm something"
-# 公开版：内置监控关键词默认为空 → 测试显式注入
-log_monitor.monitor_keywords = lambda: ["cbm"]
 
 #: 原始 subprocess 模块（patch 后用于恢复，避免污染其它测试）
 _ORIG_SUBPROCESS = log_monitor.subprocess

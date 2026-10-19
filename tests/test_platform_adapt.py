@@ -1,16 +1,16 @@
 # -*- coding: utf-8 -*-
-"""平台适配测试（2026-10-09）— PLT2/PLT3（vendor 8255 双台架）
+"""平台适配测试（2026-10-09）— T28/T1MA（desaysv 8255 双台架）
 
-设计依据：``37-PLT2-PLT3平台支持设计.md`` §六 验收标准。
+设计依据：``37-T28-T1MA平台支持设计.md`` §六 验收标准。
 
 覆盖：
-  [1] 文件过滤 glob（默认 main_* == 旧行为；PLT2 模式 logcat.txt/*.txt.gz）
+  [1] 文件过滤 glob（默认 main_* == 旧行为；T28 模式 logcat.txt/*.txt.gz）
   [2] 流式分片聚合（**真实日志夹具**：appendText + 20204 nlp → 完整回复）
-  [3] fragments 默认关（PLT1 零漂移：20204/appendText 不产生回复记录）
+  [3] fragments 默认关（E0V 零漂移：20204/appendText 不产生回复记录）
   [4] 多会话交错不串（按 sid / 静默分段）
   [5] 静默边界与重叠去重（合成样本）
-  [6] 拒识规则随档案（PLT2：handle sparkDenial 不误报；cbm_denial 真报；内置对比）
-  [7] 预置档案契约（plt2.json / plt3.json 关键字段钉死）
+  [6] 拒识规则随档案（T28：handle sparkDenial 不误报；cbm_denial 真报；内置对比）
+  [7] 预置档案契约（t28.json / t1ma.json 关键字段钉死）
 
 用法:
     python tests/test_platform_adapt.py
@@ -32,37 +32,7 @@ from cartest.core.judger import Judger, default_timeout as judge_default_timeout
 from cartest.core.parser import live as parser_live  # noqa: E402
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
-
-
-#: 公开版：预置档案不随仓库分发（方案只保留默认内置），测试用样例档案替代
-SAMPLE_PLT2 = {
-    "key": "plt2", "name": "PLT2",
-    "device": {"services": []},
-    "extract": {"enabled": False},
-    "log": {
-        "pull_paths": [{"path": "/log/android/logcat/", "alias": "Android", "enabled": True}],
-        "file_glob": ["logcat.txt", "*.txt.gz"],
-        "reply_fragments": True, "settle_flush": False,
-        "size_paths": [{"path": "/log/android/", "alias": "Android", "enabled": True}],
-    },
-    "judge": {
-        "deny_pattern": ("大模型拒识|pk_type[\"']?\\s*[:=]\\s*[\"']?cbm_denial|"
-                         "domain\\s*=\\s*\\[cbm_denial\\]"),
-        "timeout": 30,
-    },
-}
-SAMPLE_PLT3 = dict(SAMPLE_PLT2, key="plt3", name="PLT3")
-
-
-def _write_sample(proj: Path, key: str) -> None:
-    """把样例档案写入指定方案目录"""
-    proj.mkdir(parents=True, exist_ok=True)
-    data = SAMPLE_PLT2 if key == "plt2" else SAMPLE_PLT3
-    (proj / f"{key}.json").write_text(
-        json.dumps(data, ensure_ascii=False), encoding="utf-8")
-
-
-HELLO_LOG = FIXTURES / "plt2_hello_window.log"
+HELLO_LOG = FIXTURES / "t28_hello_window.log"
 YEAR = 2026
 
 FAILED: list[str] = []
@@ -79,7 +49,7 @@ def main() -> int:
     config_center.set_settings_file(tmp / "settings.json")   # 隔离，不碰真实 settings
 
     print("=" * 70)
-    print("平台适配测试 — PLT2/PLT3（vendor 8255）")
+    print("平台适配测试 — T28/T1MA（desaysv 8255）")
     print("=" * 70)
 
     # ── [1] 文件过滤 glob ──
@@ -96,16 +66,16 @@ def main() -> int:
 
     check("默认 == main_*（旧行为逐字保持）",
           names(parser_live.iter_log_files(str(d))) == ["main_a.log"])
-    check("PLT2 模式（logcat.txt + *.txt.gz）",
+    check("T28 模式（logcat.txt + *.txt.gz）",
           names(parser_live.iter_log_files(str(d), ["logcat.txt", "*.txt.gz"]))
           == ["002_x.txt.gz", "logcat.txt"])
     check("不误纳其他文件（.json）",
           "other.json" not in names(parser_live.iter_log_files(str(d), ["logcat.txt", "*.txt.gz"])))
 
     # ── [2] 流式分片聚合（真实日志夹具）──
-    print("\n[2] 流式分片聚合（PLT2 真实日志夹具）")
+    print("\n[2] 流式分片聚合（T28 真实日志夹具）")
     check("夹具存在", HELLO_LOG.is_file(), str(HELLO_LOG))
-    matched, _ = parser_live.parse_logs(str(FIXTURES), ["plt2_hello_window.log"], fragments=True)
+    matched, _ = parser_live.parse_logs(str(FIXTURES), ["t28_hello_window.log"], fragments=True)
     hits = [m for m in matched if m.query == "你好"]
     dom = next((m.domain for m in hits if m.domain), "")
     rep = next((m.reply for m in hits if m.reply), "")
@@ -113,9 +83,9 @@ def main() -> int:
     check("回复完整（首尾均在）",
           "你好呀" in rep and "都可以随时和我说" in rep, repr(rep[:70]))
 
-    # ── [3] fragments 默认关（PLT1 零漂移）──
-    print("\n[3] fragments 默认关（PLT1 零漂移保证）")
-    matched0, _ = parser_live.parse_logs(str(FIXTURES), ["plt2_hello_window.log"])
+    # ── [3] fragments 默认关（E0V 零漂移）──
+    print("\n[3] fragments 默认关（E0V 零漂移保证）")
+    matched0, _ = parser_live.parse_logs(str(FIXTURES), ["t28_hello_window.log"])
     hits0 = [m for m in matched0 if m.query == "你好"]
     dom0 = next((m.domain for m in hits0 if m.domain), "")
     rep0 = next((m.reply for m in hits0 if m.reply), "")
@@ -157,42 +127,42 @@ def main() -> int:
     check("重叠增量去重", reps[2] == "你好世界", str(reps[2]))
 
     # ── [6] 拒识规则随档案 ──
-    print("\n[6] 拒识规则随档案（PLT2 版 vs 内置）")
+    print("\n[6] 拒识规则随档案（T28 版 vs 内置）")
     proj = tmp / "projects"
     proj.mkdir()
-    _write_sample(proj, "plt2")
+    shutil.copy2(ROOT / "data" / "projects" / "t28.json", proj / "t28.json")
     project.set_projects_dir(proj)
-    project.set_active("plt2")
+    project.set_active("t28")
 
     j1 = Judger(clock=lambda: "")
     j1.feed_log("10-09 18:19:55.630830  4254  6887 I ASS-CbmToolPkStrategy: handle sparkDenial")
-    check("PLT2：例行 handle sparkDenial 不误报拒识", j1._denied is False)
+    check("T28：例行 handle sparkDenial 不误报拒识", j1._denied is False)
 
     j2 = Judger(clock=lambda: "")
     j2.feed_log("10-09 18:20:07.993  4254  6887 I ASS-CbmToolPkStrategy: 20009::云端落域 "
                 "query = [x], sid = [y], cbm_tool_pk.type = [cbm_agent], "
                 "domain = [cbm_denial], intent = [other]")
-    check("PLT2：domain=[cbm_denial] 正确判拒识", j2._denied is True)
+    check("T28：domain=[cbm_denial] 正确判拒识", j2._denied is True)
 
-    project.set_active("plt1")
+    project.set_active("e0v")
     project.set_projects_dir(None)
     j3 = Judger(clock=lambda: "")
     j3.feed_log("ASS-CbmToolPkStrategy: handle sparkDenial")
-    check("内置（PLT1）规则：bare sparkDenial 会命中（差异真实存在，档案隔离必要）",
+    check("内置（E0V）规则：bare sparkDenial 会命中（差异真实存在，档案隔离必要）",
           j3._denied is True)
 
     # 判定超时默认值随档案（judge.timeout，2026-10-09）
     check("超时兜底 20s（内置）", judge_default_timeout() == 20.0)
     project.set_projects_dir(proj)
-    project.set_active("plt2")
-    check("超时默认随档案（plt2=30s）", judge_default_timeout() == 30.0)
-    project.set_active("plt1")
+    project.set_active("t28")
+    check("超时默认随档案（t28=30s）", judge_default_timeout() == 30.0)
+    project.set_active("e0v")
     project.set_projects_dir(None)
 
-    # ── [7] 样例档案契约 ──
-    print("\n[7] 样例档案契约（SAMPLE_PLT2 / SAMPLE_PLT3）")
-    for key in ("plt2", "plt3"):
-        prof = SAMPLE_PLT2 if key == "plt2" else SAMPLE_PLT3
+    # ── [7] 预置档案契约 ──
+    print("\n[7] 预置档案契约（t28.json / t1ma.json）")
+    for key in ("t28", "t1ma"):
+        prof = json.loads((ROOT / "data" / "projects" / f"{key}.json").read_text(encoding="utf-8"))
         lg = prof.get("log", {})
         # 平台契约：路径落在 /log/android 下（具体到不到 logcat/ 子目录属用户可调值，
         # 2026-10-12 起该键为「方案值」，用户可在配置页改——故只钉平台前缀）
@@ -249,7 +219,7 @@ def main() -> int:
     check("本次记录保留", out9.get("新会话", {}).get("domain") == "新域", repr(out9.get("新会话")))
 
     # ── [9] settle flush 平台开关（2026-10-10 真机事故修复）──
-    # 事故：PLT2 上 settle 的 force-stop(主应用) 致其不自动复活 → 车机回落 Launcher、
+    # 事故：T28 上 settle 的 force-stop(主应用) 致其不自动复活 → 车机回落 Launcher、
     # 语音服务进入"输入法期间"拦截态 → 后续注入全被拒。档案 log.settle_flush=false 跳过。
     print("\n[9] settle flush 开关（force-stop 事故修复）")
     from cartest.pipeline.stages import stage_settle
@@ -269,27 +239,27 @@ def main() -> int:
     def _run_settle(profile_key: str) -> list[str]:
         proj9 = tmp / f"proj9_{profile_key}"
         proj9.mkdir()
-        if profile_key == "plt2":
-            _write_sample(proj9, "plt2")
+        if profile_key == "t28":
+            shutil.copy2(ROOT / "data" / "projects" / "t28.json", proj9 / "t28.json")
         project.set_projects_dir(proj9)
         project.set_active(profile_key)
         fake = _FakeAdb()
         ctx9 = _types.SimpleNamespace(device_logs_dir=tmp / f"dl9_{profile_key}")
         p9 = _types.SimpleNamespace(
-            adb_session=lambda: fake, voice_package="com.example.carvoice",
+            adb_session=lambda: fake, voice_package="com.lioncarmind.car",
             settle_wait=0.0, device="", log=lambda m, t="info": None)
         stage_settle(ctx9, p9)
         return fake.force_stopped
 
-    stops_plt2 = _run_settle("plt2")
-    check("plt2：settle 不 force-stop（防主应用不复活事故）", stops_plt2 == [], str(stops_plt2))
-    stops_plt1 = _run_settle("plt1")
-    check("plt1（内置）：settle 照旧 force-stop", stops_plt1 == ["com.example.carvoice"],
-          str(stops_plt1))
-    project.set_active("plt1")
+    stops_t28 = _run_settle("t28")
+    check("t28：settle 不 force-stop（防主应用不复活事故）", stops_t28 == [], str(stops_t28))
+    stops_e0v = _run_settle("e0v")
+    check("e0v（内置）：settle 照旧 force-stop", stops_e0v == ["com.lioncarmind.car"],
+          str(stops_e0v))
+    project.set_active("e0v")
     project.set_projects_dir(None)
 
-    # ── [10] 20204 长文本截断容错 + 空片段清理（2026-10-10 PLT3 真机暴露）──
+    # ── [10] 20204 长文本截断容错 + 空片段清理（2026-10-10 T1MA 真机暴露）──
     # 真机：cbm_tool_news 长新闻列表撞 logcat 单行长度上限被物理截断（行尾无闭合
     # 引号）→ 原正则提取失败 → 整条长文本丢失（"新闻热榜"用例 reply 空）。
     # 另：状态型 20204（无正文）会产生空流，浪费回复配对轮次——聚合器应丢弃。
@@ -320,7 +290,7 @@ def main() -> int:
     check("空文本 20204 片段不产出记录（空流清理）", reps10b == [], str(reps10b))
     reps10c = [r.reply for r in
                parser_live.LogParser(fragments=False).parse_log_file(str(f_trunc))["replies"]]
-    check("fragments=False 时截断行不产出（PLT1 零漂移不变）", reps10c == [], str(reps10c))
+    check("fragments=False 时截断行不产出（E0V 零漂移不变）", reps10c == [], str(reps10c))
 
     print()
     print("=" * 70)

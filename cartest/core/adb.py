@@ -353,7 +353,7 @@ class AdbSession:
 
             svc_starts = service_starts()
             if not svc_starts:
-                # PLT2/PLT3 等平台无 iflytek.autofly.vr 等组件——档案 device.services 为空时
+                # T28/T1MA 等平台无 iflytek.autofly.vr 等组件——档案 device.services 为空时
                 # 跳过启动段（组件清单待真机验证后在项目档案补齐），不静默、不误报失败
                 _log("[语音] 该平台未配置服务组件（device.services 为空）——"
                      "跳过启动段；请真机验证后在项目档案补齐", "warn")

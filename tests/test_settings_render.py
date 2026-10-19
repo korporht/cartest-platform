@@ -131,7 +131,7 @@ def main() -> int:
     ce.set_value("alt2")
     check("项目选择器取值/往返", ce.get_value() == "alt2" and ce.validate() is None)
     ce.set_value("nope")
-    check("项目选择器非法值回退首个（不抛）", ce.get_value() == "plt1", str(ce.get_value()))
+    check("项目选择器非法值回退首个（不抛）", ce.get_value() == "e0v", str(ce.get_value()))
 
     # schema 每项都能拿到编辑器（不再有"暂未实现渲染"）
     schema_types = {i["type"] for i in config_center.schema()}
@@ -240,7 +240,7 @@ def main() -> int:
     raw = json.loads((tmp / "settings.json").read_text(encoding="utf-8"))
     check("settings.json 含 project.active", raw.get("project.active") == "alt2", str(raw))
     check("active_key 读回", project.active_key() == "alt2")
-    project.set_active("plt1")
+    project.set_active("e0v")
 
     print()
     print("=" * 70)

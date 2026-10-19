@@ -8,7 +8,13 @@
 界面：
   · 输入行：一句话输入框（**回车即灌**）+ 灌入 / 停止 + 超时 + 语义模式
   · **循环灌入（2026-10-15 用户诉求）**：次数（留空/0＝不限，用「停止」结束）+
-    循环间隔（秒）——每轮独立灌入（独立日志窗口，轮间不串判），逐条落结果卡片
+    间隔（秒）——每轮独立灌入（独立日志窗口，轮间不串判），逐条落结果卡片
+  · **失败即停（2026-10-19 用户诉求）**：勾选后任一轮失败（含发送失败/异常）
+    即结束循环，收尾提示区分「失败即停」与「手动停止」
+  · **用例导入 + 顺序执行（2026-10-19 用户诉求）**：浏览/输入用例文件
+    （xlsx / csv / txt / json，复用 ``core.source.DataSource``）→ 导入后列出用例
+    （点击某条＝填入输入框，指定用例执行）→「顺序执行」按列表逐条灌入，
+    与循环灌入共用「间隔」「失败即停」「停止」通路
   · 结果卡片：`#n  query  ✓/✕  落域  ⏱ 端到端  reply / 失败原因`，点卡片复制该条
   · 历史：最近 50 条落 ``data/tools/single_inject_history.json``，下拉可回填重灌
 """
@@ -23,7 +29,9 @@ import flet as ft
 from ...core import config
 from ...core.injector import InjectState
 from ...core.judger import default_timeout as judge_default_timeout
+from ...core.source import DataSource, TestCase
 from .. import tasks as tasks_mod
+from ..ui import components
 from ..ui.components import sync_text_value
 from . import constants
 from .base_tab import BaseTab
@@ -56,11 +64,13 @@ class SingleInjectTab(BaseTab):
             label="超时(秒)", dense=True, width=110, text_size=12,
             on_change=sync_text_value)
         self._mode_dd = ft.Dropdown(
-            label="语义模式", dense=True, width=150, text_size=12, value="3",
+            label="语义模式", dense=True, width=150, text_size=12,
+            value=str(self.app.cfg.get("single_inject_mode", "3")),
             options=[ft.dropdown.Option("3", "3 语义直入"),
                      ft.dropdown.Option("1", "1"),
                      ft.dropdown.Option("2", "2")],
-            tooltip="灌入模式（VR getSemantic 的 mode 参数，默认 3）")
+            tooltip="灌入模式（VR getSemantic 的 mode 参数，默认 3；"
+                    "1/2 为其他注入档位，透传到 ?mode=N）")
         # 循环灌入（2026-10-15）：次数留空/0 ＝ 不限（用「停止」结束）
         self._repeat_field = ft.TextField(
             value=str(self.app.cfg.get("single_inject_repeat", "1")),
@@ -70,9 +80,52 @@ class SingleInjectTab(BaseTab):
             on_change=sync_text_value)
         self._interval_field = ft.TextField(
             value=str(self.app.cfg.get("single_inject_interval", "2")),
-            label="循环间隔(秒)", dense=True, width=140, text_size=12,
-            tooltip="每轮之间的等待（给车机留出播报与落日志时间；0＝不等）",
+            label="间隔(秒)", dense=True, width=120, text_size=12,
+            tooltip="每轮/每条之间的等待（给车机留出播报与落日志时间；0＝不等）",
             on_change=sync_text_value)
+        # 失败即停（2026-10-19 用户裁决：循环/顺序执行**默认行为**，不做开关）
+        # —— 任一轮/任一用例失败（含发送失败/异常）即结束执行，见服务层 fail_fast
+        # ── 用例导入 + 顺序执行（2026-10-19）──
+        self._cases: list = []                    # list[TestCase]（DataSource 加载）
+        self._case_path_field = ft.TextField(
+            value=str(self.app.cfg.get("single_inject_case_file", "")),
+            hint_text="用例文件路径（xlsx / csv / txt / json）",
+            dense=True, expand=True, text_size=12,
+            on_change=sync_text_value,
+            on_submit=lambda e: self._import_cases())
+        self._btn_browse = ft.OutlinedButton(
+            "浏览…", icon=ft.Icons.FOLDER_OPEN,
+            tooltip="选择用例文件（Web 模式请直接粘贴路径）",
+            on_click=self._browse)
+        self._btn_import = ft.FilledTonalButton(
+            "导入", icon=ft.Icons.UPLOAD_FILE,
+            tooltip="按上方路径加载用例（浏览选中后会自动导入；"
+                    "Web 模式请粘贴路径后点此）",
+            on_click=lambda e: self._import_cases())
+        self._btn_clear_cases = ft.TextButton(
+            "清空", tooltip="清空已导入的用例列表",
+            on_click=lambda e: self._clear_cases())
+        self._btn_seq = ft.FilledButton(
+            "顺序执行", icon=ft.Icons.PLAYLIST_PLAY,
+            disabled=True,
+            tooltip="按用例列表逐条灌入（间隔/失败即停与循环灌入共用）",
+            on_click=lambda e: self._run_sequential())
+        self._case_list = ft.ListView(spacing=2, padding=0, expand=True)
+        self._case_empty = ft.Text(
+            "尚未导入用例（支持 xlsx / csv / txt / json；"
+            "点「浏览…」选中即自动导入，或粘贴路径后点「导入」）",
+            size=10, color=self.t.c("text_hint"))
+        self._case_holder = ft.Container(
+            expand=True, border_radius=8, padding=6,
+            border=ft.border.Border.all(1, self.t.c("border")),
+            content=self._case_empty)
+        # 用例 / 结果 两视图（小 tab 切换；常驻槽只切 visible —— 对齐合并页做法，
+        # 避免动态替换可点控件留下的失效命中区）
+        self._view = "cases"                      # cases | results
+        self._chips_row = ft.Row(spacing=6)
+        self._cases_slot = ft.Container(expand=True, content=self._case_holder)
+        self._results_slot = ft.Container(expand=True, visible=False)
+        self._loop_kind = "loop"                  # loop | sequential（收尾提示用）
         self._history_dd = ft.Dropdown(
             label="历史", dense=True, width=260, text_size=12,
             options=[ft.dropdown.Option(h) for h in self._history],
@@ -96,16 +149,33 @@ class SingleInjectTab(BaseTab):
         if self._svc.busy:
             self._btn_run.disabled = True
             self._btn_stop.disabled = False
+        # 上次用例文件回填（无内存用例时自动导入——路径失效则静默，不刷红）
+        if not self._cases and (self._case_path_field.value or "").strip():
+            self._import_cases(quiet=True)
+        self._rebuild_case_list()
+        # 执行中/有结果时默认看结果，否则看用例
+        if self._svc.busy or self._records:
+            self._view = "results"
+        self._results_slot.content = self._result_list
+        self._cases_slot.visible = (self._view == "cases")
+        self._results_slot.visible = (self._view == "results")
+        self._rebuild_chips()
         return ft.Column([
             ft.Row([self._field, self._btn_run, self._btn_stop], spacing=8),
             ft.Row([self._timeout_field, self._mode_dd, self._repeat_field,
                     self._interval_field, self._history_dd],
                    spacing=8, wrap=True),
+            ft.Row([self._btn_browse, self._case_path_field, self._btn_import,
+                    self._btn_clear_cases, self._btn_seq], spacing=8),
             ft.Text("每灌一句都会记入下方事件窗口（含命令与回显）；"
                     "结果卡片可点击复制。次数 > 1 或留空＝循环灌入："
-                    "每轮独立（独立日志窗口、轮间不串判），点「停止」结束。",
+                    "每轮独立（独立日志窗口、轮间不串判），点「停止」结束。"
+                    "循环/顺序执行任一次失败即自动结束；"
+                    "导入用例后可点某条指定执行，或「顺序执行」逐条灌入。",
                     size=10, color=t.c("text_hint")),
-            self._result_list,
+            self._chips_row,
+            self._cases_slot,
+            self._results_slot,
         ], spacing=8, expand=True)
 
     # ── 动作 ────────────────────────────────
@@ -128,23 +198,27 @@ class SingleInjectTab(BaseTab):
         try:
             interval = float(self._interval_field.value or 0)
         except ValueError:
-            self._status("循环间隔必须是数字（秒）", "danger")
+            self._status("间隔必须是数字（秒）", "danger")
             return
         if interval < 0:
-            self._status("循环间隔不能为负", "danger")
+            self._status("间隔不能为负", "danger")
             return
-        self._save_prefs(q, timeout, self._repeat_field.value, interval)
+        voice_mode = self._voice_mode()
+        self._save_prefs(q, timeout, self._repeat_field.value, interval,
+                         voice_mode=voice_mode)
         self._add_history(q)
         # 40 号 §4：设备忙（其他设备任务/流水线运行中）→ 入队，完成后自动执行；
         # "started" 时队列已执行 starter，勿再直跑（防双重执行）
         verdict = self._submit_device_task("inject", "语音灌入",
                                            lambda: self._begin_inject(
-                                               q, timeout, repeat, interval))
+                                               q, timeout, repeat, interval,
+                                               voice_mode=voice_mode))
         if verdict == "queued":
             self._queued_feedback("inject", "语音灌入")
             return
         if verdict == "bypass":
-            self._begin_inject(q, timeout, repeat, interval)
+            self._begin_inject(q, timeout, repeat, interval,
+                               voice_mode=voice_mode)
 
     def _parse_repeat(self) -> int | None:
         """解析「次数」：留空 / 0 / 负数 → 0（不限，直到点停止）；非法 → None（已提示）"""
@@ -158,15 +232,177 @@ class SingleInjectTab(BaseTab):
             return None
         return max(0, n)
 
+    def _voice_mode(self) -> int:
+        """语义模式（VR getSemantic 的 mode；非法回退 3）"""
+        try:
+            return int(self._mode_dd.value or 3)
+        except (TypeError, ValueError):
+            return 3
+
+    # ── 用例 / 结果 视图切换（2026-10-19 用户诉求：两个小 tab）──
+    def _rebuild_chips(self) -> None:
+        self._chips_row.controls = [
+            components.chip(self.t, f"用例 {len(self._cases)}",
+                            on_click=lambda e: self._switch_view("cases"),
+                            active=self._view == "cases"),
+            components.chip(self.t, f"结果 {len(self._records)}",
+                            on_click=lambda e: self._switch_view("results"),
+                            active=self._view == "results"),
+        ]
+        self._safe_update(self._chips_row)
+
+    def _switch_view(self, view: str) -> None:
+        if view not in ("cases", "results"):
+            return
+        self._view = view
+        self._cases_slot.visible = (view == "cases")
+        self._results_slot.visible = (view == "results")
+        self._rebuild_chips()
+        self._safe_update(self._cases_slot)
+        self._safe_update(self._results_slot)
+
+    # ── 用例导入 + 顺序执行（2026-10-19）────────
+    def _run_sequential(self) -> None:
+        """顺序执行：按导入的用例列表逐条灌入（间隔/失败即停/停止与循环共用）"""
+        if not self._cases:
+            self._status("请先导入用例文件", "warning")
+            return
+        if self._svc.busy:
+            self._status("上一次灌入仍在进行", "warning")
+            return
+        try:
+            timeout = float(self._timeout_field.value or f"{judge_default_timeout():g}")
+            interval = float(self._interval_field.value or 0)
+        except ValueError:
+            self._status("超时/间隔必须是数字", "danger")
+            return
+        if interval < 0:
+            self._status("间隔不能为负", "danger")
+            return
+        voice_mode = self._voice_mode()
+        queries = [c.query for c in self._cases]
+        self._save_prefs("", timeout, self._repeat_field.value, interval,
+                         voice_mode=voice_mode)
+        verdict = self._submit_device_task(
+            "inject", "顺序灌入",
+            lambda: self._begin_inject("", timeout, repeat=len(queries),
+                                       interval=interval,
+                                       queries=queries, voice_mode=voice_mode))
+        if verdict == "queued":
+            self._queued_feedback("inject", "顺序灌入")
+            return
+        if verdict == "bypass":
+            self._begin_inject("", timeout, repeat=len(queries),
+                               interval=interval,
+                               queries=queries, voice_mode=voice_mode)
+
+    async def _browse(self, e=None) -> None:  # noqa: ANN001
+        """浏览用例文件（0.85：FilePicker 是 Service，构造即注册、**勿挂 overlay**）"""
+        if getattr(self.app.page, "web", False):
+            self._status("文件选择仅支持桌面模式（Web 模式请直接粘贴路径）", "warning")
+            return
+        try:
+            picker = ft.FilePicker()
+            files = await picker.pick_files(
+                dialog_title="选择用例文件（xlsx / csv / txt / json）",
+                allowed_extensions=["xlsx", "xls", "csv", "txt", "text", "json"])
+            if files:
+                self._case_path_field.value = files[0].path
+                self._safe_update(self._case_path_field)
+                self._import_cases()
+        except Exception as ex:  # noqa: BLE001
+            self._status(f"选择文件失败：{ex}", "danger")
+
+    def _import_cases(self, *, quiet: bool = False) -> None:
+        """导入用例文件（复用 ``core.source.DataSource``：xlsx/csv/txt/json 全支持）"""
+        path = (self._case_path_field.value or "").strip()
+        if not path:
+            if not quiet:
+                self._status("请先选择或输入用例文件路径", "warning")
+            return
+        ds = DataSource()
+        ok, msg, _count = ds.load_file(path)
+        if not ok or not ds.cases:
+            self._cases = []
+            self._rebuild_case_list()
+            if not quiet:
+                self._status(f"导入失败：{msg}", "danger")
+            return
+        self._cases = list(ds.cases)
+        self._rebuild_case_list()
+        self._switch_view("cases")          # 导入即看用例列表
+        self._status(f"已导入 {len(self._cases)} 条用例（{Path(path).name}）",
+                     "success")
+        try:
+            self.app.cfg.set("single_inject_case_file", path)
+        except Exception:  # noqa: BLE001
+            pass
+
+    def _clear_cases(self) -> None:
+        self._cases = []
+        self._case_path_field.value = ""
+        self._rebuild_case_list()
+        self._rebuild_chips()
+        self._safe_update(self._case_path_field)
+        self._status("已清空用例列表")
+
+    def _pick_case(self, idx: int) -> None:
+        """点击用例 → 指定用例执行（填入输入框，点「灌入」即跑该条）"""
+        if not (0 <= idx < len(self._cases)):
+            return
+        q = self._cases[idx].query
+        self._field.value = q
+        self._safe_update(self._field)
+        self._status(f"已选第 {idx + 1} 条：{q}（点「灌入」执行该条）")
+
+    def _rebuild_case_list(self) -> None:
+        """按 ``self._cases`` 重建用例列表；无用例显示空态提示"""
+        self._case_list.controls = [self._case_row(i, c)
+                                    for i, c in enumerate(self._cases, 1)]
+        self._btn_seq.disabled = not self._cases
+        self._case_holder.content = (self._case_list if self._cases
+                                     else self._case_empty)
+        self._safe_update(self._case_list)
+        self._safe_update(self._btn_seq)
+        self._safe_update(self._case_holder)
+
+    def _case_row(self, idx: int, case) -> ft.Control:  # noqa: ANN001
+        """用例行：``#n  query  分类``——点击＝指定该条执行"""
+        t = self.t
+        cat = getattr(case, "category", "") or ""
+        return ft.Container(
+            content=ft.Row([
+                ft.Text(f"#{idx}", size=10, width=34, color=t.c("text_hint")),
+                ft.Text(case.query, size=11, expand=True, no_wrap=True,
+                        color=t.c("text_primary")),
+                ft.Text(cat or "—", size=9, width=90, no_wrap=True,
+                        color=t.c("text_secondary")),
+            ], spacing=6, vertical_alignment=ft.CrossAxisAlignment.CENTER),
+            padding=ft.padding.Padding(left=8, right=8, top=3, bottom=3),
+            border_radius=6,
+            on_click=lambda e, i=idx - 1: self._pick_case(i),
+            tooltip="点击＝指定该条执行（填入输入框）")
+
     def _begin_inject(self, q: str, timeout: float, repeat: int = 1,
-                      interval: float = 0.0) -> None:
-        """真正发起灌入（可由队列出队触发——工作线程调用；UI 走 on_main）"""
+                      interval: float = 0.0,
+                      queries: list[str] | None = None,
+                      voice_mode: int = 3) -> None:
+        """真正发起灌入（可由队列出队触发——工作线程调用；UI 走 on_main）
+
+        ``queries`` 非空＝顺序执行：按列表逐条灌入（轮数＝用例数，忽略 ``repeat``）。
+        **失败即停为默认行为**（2026-10-19 用户裁决）——不再由界面开关控制。
+        """
         self._set_busy(True)
-        self._loop_total = repeat
+        self._switch_view("results")        # 开始执行 → 自动切到结果 tab
+        self._loop_kind = "sequential" if queries else "loop"
+        self._loop_total = len(queries) if queries else repeat
         self._run_pass = 0
         self._run_fail = 0
-        rounds_txt = f" × {repeat}" if repeat else " × 不限"
-        self._status(f"已发送：{q}{rounds_txt if repeat != 1 else ''}", "warning")
+        if queries:
+            self._status(f"顺序执行：共 {len(queries)} 条用例", "warning")
+        else:
+            rounds_txt = f" × {repeat}" if repeat else " × 不限"
+            self._status(f"已发送：{q}{rounds_txt if repeat != 1 else ''}", "warning")
         state = self.app.state
         # 设备占用：灌入期间禁止顶栏切换设备（先占后启——IDLE 回调必然在 acquire 之后）
         state.device_acquire("inject")
@@ -175,25 +411,30 @@ class SingleInjectTab(BaseTab):
             # 直跑路径（无队列）→ 此处登记；队列路径已在提交时登记
             self._task_register("inject", "语音灌入",
                                 kind=tasks_mod.KIND_DEVICE, stop_fn=self._svc.stop)
-        self._task_update("inject", detail=q)
+        self._task_update("inject", detail=q or f"{len(queries or [])} 条用例")
         started_ok = self._svc.run(
             q, device=str(getattr(state, "device", "") or ""),
             timeout=timeout, repeat=repeat, interval=interval,
+            fail_fast=True, queries=queries, voice_mode=voice_mode,
             on_log=lambda m, tag="info": self.app.append_log_to_panel(m),
             on_done=lambda case, judgment: self._on_done(case, judgment, time.time()),
             on_state=self._on_state,
-            on_round=lambda idx, total: self._on_round(q, idx, total))
+            on_round=lambda idx, total: self._on_round(q, idx, total, queries))
         if not started_ok:
             state.device_release("inject")
             self._task_unregister("inject")
             self._set_busy(False)
             self._status("启动失败（上一次灌入仍在进行）", "warning")
 
-    def _on_round(self, q: str, idx: int, total: int) -> None:
-        """轮次回调（服务线程）→ 顶栏任务详情 + 状态行显示「第 n/N 次」"""
+    def _on_round(self, q: str, idx: int, total: int,
+                  queries: list[str] | None = None) -> None:
+        """轮次回调（服务线程）→ 顶栏任务详情 + 状态行显示「第 n/N 次/条」"""
+        cur = queries[idx - 1] if (queries and 0 < idx <= len(queries)) else q
         lbl = f"第 {idx}/{total} 次" if total else f"第 {idx} 次（不限）"
-        self._task_update("inject", detail=f"{q}（{lbl}）")
-        self._status(f"循环灌入 {lbl}：{q}", "warning")
+        detail = f"{cur}（{lbl}）" if cur else lbl
+        self._task_update("inject", detail=detail)
+        kind = "顺序执行" if queries else "循环灌入"
+        self._status(f"{kind} {lbl}：{cur}" if cur else f"{kind} {lbl}", "warning")
 
     def _on_state(self, st) -> None:  # noqa: ANN001 — 服务线程回调
         """服务状态回调：IDLE 一定到达（含停止/异常路径）→ 兜底复位按钮
@@ -206,11 +447,20 @@ class SingleInjectTab(BaseTab):
             self._task_unregister("inject")     # 40 号：任务结束 → 移出活动表、进历史
             self._set_busy(False)
             self.app.state.device_release("inject")
-            # 循环灌入收尾汇总（单发已逐次提示，此处跳过）
+            # 循环/顺序执行收尾汇总（单发已逐次提示，此处跳过）
             n = self._run_pass + self._run_fail
             if self._loop_total != 1 and n:
-                self._done(f"循环灌入完成 {n} 次（通过 {self._run_pass}）",
-                           ok=self._run_fail == 0)
+                if self._svc.stop_reason == "fail_fast":
+                    # 失败即停：失败轮 = 通过的下一轮（遇首败即停）
+                    unit = "条" if self._loop_kind == "sequential" else "次"
+                    self._done(f"第 {self._run_pass + 1} {unit}灌入失败，"
+                               f"「失败即停」已提前结束", ok=False)
+                elif self._loop_kind == "sequential":
+                    self._done(f"顺序执行完成 {n} 条（通过 {self._run_pass}）",
+                               ok=self._run_fail == 0)
+                else:
+                    self._done(f"循环灌入完成 {n} 次（通过 {self._run_pass}）",
+                               ok=self._run_fail == 0)
 
     def _stop(self) -> None:
         self._svc.stop()
@@ -235,6 +485,7 @@ class SingleInjectTab(BaseTab):
         self._records.insert(0, rec)
         self._result_list.controls.insert(0, self._record_card(len(self._records), rec))
         self._safe_update(self._result_list)
+        self._rebuild_chips()               # 「结果 N」计数即时更新
         # 40 号：结果即时落 tool_state——离页重建后 restore_state 不丢在途结果
         try:
             self.app.state.tool_state["inject"] = self.save_state()
@@ -311,12 +562,14 @@ class SingleInjectTab(BaseTab):
             self._safe_update(self._hint)
 
     def _save_prefs(self, query: str, timeout: float, repeat: str = "1",
-                    interval: float = 0.0) -> None:
+                    interval: float = 0.0, voice_mode: int = 3) -> None:
         try:
-            self.app.cfg.set("single_inject_last", query)
+            if (query or "").strip():           # 顺序执行不覆盖上次手输内容
+                self.app.cfg.set("single_inject_last", query)
             self.app.cfg.set("single_inject_timeout", str(timeout))
             self.app.cfg.set("single_inject_repeat", str(repeat))
             self.app.cfg.set("single_inject_interval", f"{interval:g}")
+            self.app.cfg.set("single_inject_mode", str(voice_mode))
         except Exception:  # noqa: BLE001
             pass
 
@@ -347,7 +600,14 @@ class SingleInjectTab(BaseTab):
 
     # ── 生命周期 ────────────────────────────
     def save_state(self) -> dict:
-        return {"records": self._records[:20]}
+        return {
+            "records": self._records[:20],
+            # 用例列表随页存（切页/切主题重建后不丢，免重新导入）
+            "cases": [{"id": c.id, "query": c.query,
+                       "category": getattr(c, "category", "")}
+                      for c in self._cases],
+            "case_path": (self._case_path_field.value or ""),
+        }
 
     def restore_state(self, state: dict) -> None:
         recs = (state or {}).get("records") or []
@@ -355,6 +615,17 @@ class SingleInjectTab(BaseTab):
             self._records = list(recs)
             for i, r in enumerate(reversed(self._records)):
                 self._result_list.controls.append(self._record_card(i + 1, r))
+        cases = (state or {}).get("cases") or []
+        if cases and not self._cases:
+            self._cases = [
+                TestCase(id=str(c.get("id") or f"TC{i:04d}"),
+                         query=str(c.get("query") or ""),
+                         category=str(c.get("category") or ""))
+                for i, c in enumerate(cases, 1) if c.get("query")]
+            self._rebuild_case_list()
+        path = str((state or {}).get("case_path") or "")
+        if path and not (self._case_path_field.value or "").strip():
+            self._case_path_field.value = path
 
     def on_detach(self) -> None:
         """离页**不停灌入**（40 号新语义）：任务归 ``state.tasks`` 持有

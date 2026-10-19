@@ -6,11 +6,11 @@
     python tools/gui_e2e.py --port 8582
 
 覆盖（UI-4 后的壳与合并页）：
-  · 壳：侧栏条目（配置置顶 / 通用工具单组 8 项；2026-10-12 取消「项目定制」）
+  · 壳：侧栏条目（配置置顶 / 通用工具单组 7 项；2026-10-12 取消「项目定制」，
+    2026-10-19 删「测试流程」页）
   · 应用与传输：子工具切换（APK 管理 → 大文件推送）
   · 屏幕与触控：子工具 chips
   · 日志终端：时间戳折叠区展开 + 真实转换
-  · 测试流程：三视图切换（执行/结果/历史）+ 空态联动
 
 说明：
   · Flet Web 需先激活语义树（``flt-semantics-placeholder``），脚本已内置；
@@ -92,7 +92,8 @@ def main() -> int:
         # ── [1] 壳 v4 ──
         check("侧栏：配置/日志终端", see("配置") and see("日志终端"))
         check("侧栏：应用与传输 / 屏幕与触控", see("应用与传输") and see("屏幕与触控"))
-        check("侧栏：测试流程", see("测试流程"))
+        check("侧栏：语音灌入", see("语音灌入"))
+        check("侧栏：测试流程已删除（2026-10-19）", not see("测试流程"))
         check("侧栏：VR 日志已移除（2026-10-12）", not see("VR 日志"))
 
         # ── [2] 应用与传输（子切换）──
@@ -116,15 +117,6 @@ def main() -> int:
             check("时间戳输入", False, repr(ex))
         check("执行转换", click_btn("🔄 转换", exact=False))
         check("转换结果（2023-11-15）", see("2023-11-15"))
-
-        # ── [5] 测试流程三视图 ──
-        check("进入测试流程", click_btn("测试流程", exact=False))
-        check("执行视图（用例文件）", see_box("用例文件"))
-        check("切到结果视图", click_btn("结果"))
-        check("结果视图（导出 CSV / 空态）", see("导出 CSV") and see("去流水线跑一次"))
-        check("空态联动 → 执行视图", click_btn("去流水线跑一次") and see_box("用例文件"))
-        check("切到历史视图", click_btn("历史"))
-        check("历史视图（清理 + chips）", see("清理") and see("keep"))
 
         check("无页面 JS 错误", not page_errors, "; ".join(page_errors[:2]))
 

@@ -76,21 +76,24 @@ def main() -> int:
           f"仅BUILDERS={sorted(set(app_pages.BUILDERS) - meta_keys)}")
     check("相册已彻底删除（2026-09-22 用户裁决）",
           "tool_gallery" not in meta_keys and "tool_gallery" not in app_pages.BUILDERS)
-    check("旧三页键移出 BUILDERS（testflow 归一）",
-          not ({"pipeline", "results", "history"} & set(app_pages.BUILDERS)))
+    check("测试流程页已整页删除（2026-10-19 用户裁决）",
+          "testflow" not in app_pages.BUILDERS
+          and not ({"pipeline", "results", "history"} & set(app_pages.BUILDERS))
+          and not (ROOT / "cartest" / "app" / "pages" / "testflow.py").exists())
 
     groups = {g: [k for k, _, _ in entries] for g, entries in main_mod.PAGE_GROUPS}
     check("单组「通用工具」（2026-10-12 取消「项目定制」分组）",
           list(groups) == ["通用工具"], str(list(groups)))
-    check("通用工具 8 项（2026-10-12 离线提取/单条灌入/测试流程并入）",
+    check("通用工具 7 项（2026-10-19 删除测试流程）",
           groups["通用工具"] == ["tool_logcat", "tool_apptrans", "tool_screen",
                               "tool_monkey", "tool_logextract", "tool_offline",
-                              "tool_inject", "testflow"],
+                              "tool_inject"],
           str(groups["通用工具"]))
     check("dlogcat 仍待接入 / VR 日志已整页删除（2026-10-12）",
           "tool_dlogcat" not in meta_keys and "tool_vr" not in meta_keys)
-    check("测试流程 / 离线提取 均在 PAGE_META",
-          "testflow" in main_mod.PAGE_META and "tool_offline" in main_mod.PAGE_META)
+    check("对话还原在 PAGE_META / 测试流程已移除",
+          "tool_offline" in main_mod.PAGE_META
+          and "testflow" not in main_mod.PAGE_META)
     check("配置入口在 PAGE_META（不归组）", "settings" in main_mod.PAGE_META)
 
     check("顶部标签栏已移除（无残留）",
@@ -112,7 +115,9 @@ def main() -> int:
 
         state = AppState()
         check("active_page 初始为日志终端（tool_logcat）", state.active_page == "tool_logcat")
-        check("active_view 初始为执行（pipeline）", state.active_view == "pipeline")
+        check("测试流程遗留属性已清理（active_view/goto_view/nav_view）",
+              not hasattr(state, "active_view") and not hasattr(state, "goto_view")
+              and not hasattr(state, "nav_view"))
         runs = state.recent_runs()
         check("recent_runs 返回 2 条", len(runs) == 2, str(len(runs)))
         by_id = {r["run_id"]: r for r in runs}

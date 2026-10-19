@@ -502,8 +502,8 @@ if __name__ == "__main__":
     # 夹具提取报告统一落到本临时目录
     with tempfile.TemporaryDirectory(prefix="cartest_runner_out_") as _out:
         os.environ["CARTEST_LOGEXTRACT_OUT"] = _out
-        # 环境隔离（2026-10-10）：断言以「内置 plt1 默认」为前提——
-        # 断开真实 settings.json 与项目档案，免受本机多平台切换（plt2/plt3）影响
+        # 环境隔离（2026-10-10）：断言以「内置 e0v 默认」为前提——
+        # 断开真实 settings.json 与项目档案，免受本机多平台切换（t28/t1ma）影响
         from cartest.core import config_center as _cc        # noqa: PLC0415
         from cartest.core import project as _pj              # noqa: PLC0415
         _iso = Path(_out) / "iso"

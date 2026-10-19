@@ -89,7 +89,7 @@ def main() -> int:
         check("parse_time_arg 非法格式抛 ValueError", True)
     check("extract_timestamp Android 命名",
           extract_timestamp("main_00101_2026-09-10_15-20-00.log") == ("20260910", 15, 20, 0))
-    check("extract_timestamp SYS1 命名",
+    check("extract_timestamp AIOS 命名",
           extract_timestamp("aios_0001_20260910-151821.dlt.gz") == ("20260910", 15, 18, 21))
     check("extract_timestamp 无时间戳 → None", extract_timestamp("random.log") is None)
     check("stream_key 同流归并",

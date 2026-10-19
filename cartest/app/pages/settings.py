@@ -478,6 +478,104 @@ def build(page: ft.Page, state: AppState) -> ft.Control:
                 return p["name"]
         return project_mod.DEFAULT_LABEL
 
+    # ── 设备绑定（2026-10-19 用户诉求）：方案 ↔ 设备序列号 ──
+    # 连接/切换到已绑定设备时，app/main 自动切到对应方案（见 scheme_for_device）。
+    def _binding_row() -> ft.Control:
+        key = project_mod.active_key()
+        devices = project_mod.scheme_devices(key)
+        text = "、".join(devices) if devices else "未绑定"
+        is_builtin = key == project_mod.BUILTIN_KEY
+        bind_btn = ft.OutlinedButton(
+            "绑定设备…", icon=ft.Icons.LINK,
+            disabled=is_builtin,
+            tooltip=("内置方案不可绑定——请先新建方案" if is_builtin
+                     else "选择在线设备或手动输入序列号"),
+            on_click=lambda e: _open_bind_dialog())
+        unbind_btn = ft.TextButton(
+            "全部解绑", visible=bool(devices),
+            on_click=lambda e: _unbind_all(key))
+        return ft.Row([
+            ft.Text("绑定设备：", size=11, color=t.c("text_secondary")),
+            ft.Text(text, size=11, color=t.c("text_primary")),
+            bind_btn, unbind_btn,
+        ], spacing=8, wrap=True)
+
+    def _unbind_all(key: str) -> None:
+        for dev in list(project_mod.scheme_devices(key)):
+            project_mod.unbind_device(key, dev)
+        _refresh_schemes()
+        _snack("已解绑该方案的全部设备", ok=True)
+
+    def _toggle_bind(key: str, serial: str, is_bound: bool) -> None:
+        if is_bound:
+            done, msg = project_mod.unbind_device(key, serial)
+            act = "解绑"
+        else:
+            done, msg = project_mod.bind_device(key, serial)
+            act = "绑定"
+        if not done:
+            _snack(f"{act}失败：{msg}", ok=False)
+            return
+        _refresh_schemes()
+        # 绑定的正是当前设备 → 立即切到该方案（所见即所得）
+        if not is_bound and state.device == serial \
+                and project_mod.active_key() != key:
+            project_mod.set_active(key)
+        _snack(f"已{act}设备 {serial}", ok=True)
+
+    def _open_bind_dialog() -> None:
+        key = project_mod.active_key()
+        if key == project_mod.BUILTIN_KEY:
+            _snack("内置方案不可绑定设备，请先新建方案", ok=False)
+            return
+        try:
+            state.refresh_devices()
+        except Exception:  # noqa: BLE001
+            pass
+        bound = set(project_mod.scheme_devices(key))
+        rows: list[ft.Control] = []
+        for dev in state.devices:
+            is_bound = dev in bound
+            alias = ""
+            try:
+                alias = project_mod.alias_for_serial(dev)
+            except Exception:  # noqa: BLE001
+                pass
+            label = f"{alias} — {dev}" if alias else dev
+            rows.append(ft.TextButton(
+                ("✓ 已绑定  " if is_bound else "＋ 绑定  ") + label,
+                on_click=lambda e, d=dev, b=is_bound: (
+                    page.pop_dialog(), _toggle_bind(key, d, b))))
+        if not rows:
+            rows.append(ft.Text("未发现在线设备（可在下方手动输入序列号）",
+                                size=11, color=t.c("text_secondary")))
+        manual = ft.TextField(hint_text="手动输入设备序列号", dense=True,
+                              text_size=12, on_change=sync_text_value)
+        err = ft.Text("", size=10, color=t.c("danger"))
+
+        def _bind_manual(e=None) -> None:  # noqa: ANN001
+            serial = (manual.value or "").strip()
+            if not serial:
+                err.value = "序列号不能为空"
+                try:
+                    err.update()
+                except Exception:  # noqa: BLE001
+                    pass
+                return
+            page.pop_dialog()
+            _toggle_bind(key, serial, serial in bound)
+
+        page.show_dialog(ft.AlertDialog(
+            modal=True,
+            title=ft.Text(f"绑定设备 — 方案「{_scheme_name(key)}」", size=14,
+                          color=t.c("text_primary")),
+            content=ft.Column(rows + [ft.Divider(height=1), manual, err],
+                              spacing=4, tight=True, width=420),
+            actions=[
+                ft.TextButton("关闭", on_click=lambda e: page.pop_dialog()),
+                ft.FilledButton("绑定手动输入", on_click=_bind_manual),
+            ]))
+
     def _on_scheme_picked(key: str) -> None:
         """下拉选方案 → 立即切换 + 重载本页（值整体换成新方案的那套）"""
         if not key or key == project_mod.active_key():
@@ -506,6 +604,7 @@ def build(page: ft.Page, state: AppState) -> ft.Control:
         scheme_holder.controls = [
             ft.Row([editors["project.active"].build()], spacing=8),
             ft.Row([add_btn, ren_btn, del_btn], spacing=8, wrap=True),
+            _binding_row(),
         ]
         try:
             scheme_holder.update()

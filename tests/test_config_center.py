@@ -52,20 +52,32 @@ def main() -> int:
 
     print("\n[1] 内置默认值与旧硬编码逐字节对照")
     pull = config_center.get("project.log.pull_paths")
-    check("公开版：内置默认 pull_paths 清空", pull == [], repr(pull))
+    check("pull[0].path == core.LOG_REMOTE_DIR", pull[0]["path"] == core_config.LOG_REMOTE_DIR)
+    check("pull[0].path == tools.REMOTE_LOG_PATH", pull[0]["path"] == tool_const.REMOTE_LOG_PATH)
+    check("pull[0] 启用且别名 Android",
+          pull[0]["enabled"] is True and pull[0]["alias"] == "Android")
+    check("pull[1] == /mnt/log/AIOS/ 默认关闭",
+          pull[1]["path"] == "/mnt/log/AIOS/" and pull[1]["enabled"] is False)
+    check("pull[2] == /mnt/log/DLT/ 默认关闭",
+          pull[2]["path"] == "/mnt/log/DLT/" and pull[2]["enabled"] is False)
     size = config_center.get("project.log.size_paths")
-    check("公开版：内置默认 size_paths 清空", size == [], repr(size))
+    check("size 三条与旧 check_log_size 一致且全启用",
+          [i["path"] for i in size] == ["/la_log/vstgloballogcontrol/",
+                                        "/mnt/log/AIOS/", "/mnt/log/DLT/"]
+          and all(i["enabled"] for i in size))
     check("两处默认不许漂移（内置档案 ⇄ config_center 常量）",
           core_project.builtin_value("log.pull_paths") == config_center._DEFAULT_PULL_PATHS
           and core_project.builtin_value("log.size_paths") == config_center._DEFAULT_SIZE_PATHS)
 
-    check("公开版：内置默认 pull_paths 清空（深拷贝语义由方案值往返段覆盖）",
-          config_center.get("project.log.pull_paths") == [])
+    mut = config_center.get("project.log.pull_paths")
+    mut[0]["alias"] = "MUTATED"
+    check("深拷贝：改返回值不污染档案",
+          config_center.get("project.log.pull_paths")[0]["alias"] == "Android")
 
     print("\n[2] 方案值往返（保存 → 写方案文件；不再走 settings）")
     modified = [
         {"path": "/custom/path/", "alias": "Custom", "enabled": True},
-        {"path": "/mnt/log/sys1/", "alias": "SYS1", "enabled": True},
+        {"path": "/mnt/log/AIOS/", "alias": "AIOS", "enabled": True},
     ]
     ok, used = core_project.save_values({"project.log.pull_paths": modified})
     check("save_values 成功", ok is True, str(used))
@@ -101,14 +113,14 @@ def main() -> int:
           config_center.get("project.log.pull_paths") == config_center._DEFAULT_PULL_PATHS)
 
     print("\n[5] effective_paths 取值链（遗留 settings → 方案/档案 → 内置）")
-    core_project.save("plt2x", {
-        "key": "plt2x", "name": "PLT2 测试台架",
+    core_project.save("t28x", {
+        "key": "t28x", "name": "T28 测试台架",
         "log": {
             "pull_paths": [{"path": "/log/android/logcat/", "alias": "logcat", "enabled": True}],
             "size_paths": [{"path": "/log/android/logcat/", "alias": "logcat", "enabled": True}],
         },
     })
-    core_project.set_active("plt2x")
+    core_project.set_active("t28x")
     check("档案提供抓取路径",
           config_center.effective_paths("pull")[0]["path"] == "/log/android/logcat/")
     check("档案提供大小检查路径",
@@ -119,7 +131,7 @@ def main() -> int:
     config_center.set("log.pull_paths", [{"path": "/legacy/", "alias": "e", "enabled": True}])
     check("遗留 settings 键不参与取值（只认方案，避免显示/生效不一致）",
           config_center.effective_paths("pull")[0]["path"] == "/log/android/logcat/")
-    core_project.set_active("plt1")
+    core_project.set_active("e0v")
     check("切方案后遗留键被清理",
           config_center.stored("log.pull_paths", None) is None)
     check("切回内置方案 → 内置默认",
@@ -129,8 +141,8 @@ def main() -> int:
     core_project.set_active("s1")
     core_project.save_values({"project.log.pull_paths": modified})
     check("s1 上保存生效", config_center.primary_pull_path() == "/custom/path/")
-    core_project.set_active("plt2x")
-    check("切到 plt2x → 用 plt2x 档案路径",
+    core_project.set_active("t28x")
+    check("切到 t28x → 用 t28x 档案路径",
           config_center.primary_pull_path() == "/log/android/logcat/")
     core_project.set_active("s1")
     check("切回 s1 → 自定义值还在（2026-10-12 修复点：不再被清）",
