@@ -46,20 +46,49 @@ class LogextractUnavailable(RuntimeError):
     """CbmLogextractor 不可用（未安装 / 路径错误）"""
 
 
+#: 工具入口候选（按优先级）：源码入口 → 单文件 exe（2026-10-19 支持免 Python 分发）
+_PY_ENTRY = "logextract.py"
+_EXE_ENTRY = "CbmLogextractor.exe"
+
+
+def _find_entry(directory: Path) -> tuple[str, str] | None:
+    """在目录内定位工具入口 → ``(kind, filename)``；kind ∈ {'py', 'exe'}"""
+    if (directory / _PY_ENTRY).is_file():
+        return "py", _PY_ENTRY
+    if (directory / _EXE_ENTRY).is_file():
+        return "exe", _EXE_ENTRY
+    return None
+
+
 def tool_dir() -> Path:
     """CbmLogextractor 目录（候选解析：env → 配置 tools.cbm_logextractor_dir → 候选根）
 
     2026-09-21：外部工具目录被移动过（BaiduNetdiskDownload → AgentProject/Tools），
     写死路径会导致「离线提取」静默不可用 → 统一走 `core.tools_locator`。
     保留旧环境变量 `CARTEST_LOGEXTRACT_DIR` 兼容。
+
+    2026-10-19：入口支持单文件 ``CbmLogextractor.exe``（测试同事免装 Python）；
+    目录探测时两种入口任选其一，源码入口优先。
     """
     from .. import tools_locator
-    found = tools_locator.resolve("cbm_logextractor", "CbmLogextractor",
-                                  "CARTEST_LOGEXTRACT_DIR", marker="logextract.py")
-    if found is not None:
-        return found
+    for marker in (_PY_ENTRY, _EXE_ENTRY):
+        found = tools_locator.resolve("cbm_logextractor", "CbmLogextractor",
+                                      "CARTEST_LOGEXTRACT_DIR", marker=marker)
+        if found is not None:
+            return found
     # 兜底：显式 env / 默认路径（让 available() 与错误提示给出原语义）
     return Path(os.environ.get("CARTEST_LOGEXTRACT_DIR", str(DEFAULT_TOOL_DIR)))
+
+
+def tool_entry() -> tuple[Path, str]:
+    """工具入口 → ``(路径, 'py'|'exe')``；都没有时抛 :class:`LogextractUnavailable`"""
+    d = tool_dir()
+    found = _find_entry(d)
+    if found is None:
+        raise LogextractUnavailable(
+            f"未找到 CbmLogextractor 入口（需要 {_PY_ENTRY} 或 {_EXE_ENTRY}）: {d}")
+    kind, name = found
+    return d / name, kind
 
 
 def reports_dir() -> Path:
@@ -68,9 +97,9 @@ def reports_dir() -> Path:
 
 
 def available() -> bool:
-    """工具是否可用（目录与入口文件都存在）"""
+    """工具是否可用（目录存在，且含源码入口或 exe 入口）"""
     d = tool_dir()
-    return d.is_dir() and (d / "logextract.py").is_file()
+    return d.is_dir() and _find_entry(d) is not None
 
 
 def _default_runner(argv: list, on_log) -> int:
@@ -121,9 +150,7 @@ def extract_report(log_dir: str | Path, *, jobs: int | None = None,
             有两义（参数错误 / 个别文件解析失败）——仅当本轮未产出新报告时才抛出；
             报告已生成时降级为 ``on_log`` 告警并正常返回（见函数内注释与集成指南 §4.2）
     """
-    entry = tool_dir() / "logextract.py"
-    if not entry.is_file():
-        raise LogextractUnavailable(f"未找到 CbmLogextractor 入口: {entry}")
+    entry, kind = tool_entry()
 
     out = out_dir or os.environ.get("CARTEST_LOGEXTRACT_OUT") or None
     run_dir: Path | None = None
@@ -133,7 +160,9 @@ def extract_report(log_dir: str | Path, *, jobs: int | None = None,
         run_dir = Path(tempfile.mkdtemp(prefix="_run_", dir=str(reports_dir())))
         out = run_dir
 
-    argv: list = [sys.executable, str(entry), "all"]
+    # 源码入口需要解释器；exe 入口自身可执行（argv[0] 直接是 exe 路径）
+    argv: list = [sys.executable, str(entry)] if kind == "py" else [str(entry)]
+    argv.append("all")
     if jobs:
         argv += ["--jobs", str(jobs)]
     Path(out).mkdir(parents=True, exist_ok=True)

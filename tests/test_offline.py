@@ -14,6 +14,7 @@
   9) 产物定位只认根目录 HTML：_raw_/ 归档 md 不被误选（2026-10-08 用户裁决）
  10) 默认隔离运行目录（reports/_run_*）执行 → 提升到 reports/ 根，运行目录清理
  11) 产物定位优先取 stdout 契约行「全量报告已写入:」而非 glob 最新（集成指南 §5.1）
+ 12) exe 入口回退：仅 CbmLogextractor.exe 时可用，argv 直用 exe；两种入口并存时源码优先
 
 用法:
     python tests/test_offline.py
@@ -97,9 +98,29 @@ def main() -> int:
             check("缺入口 → LogextractUnavailable", raised)
             (tdir / "x.py").rename(tdir / "logextract.py")
 
+            # ── [12] exe 入口回退（免 Python 分发，2026-10-19）──
+            (tdir / "logextract.py").rename(tdir / "z.py")
+            (tdir / "CbmLogextractor.exe").write_bytes(b"MZ")
+            check("exe 入口: available=True", offline.available() is True)
+            entry, kind = offline.tool_entry()
+            check("exe 入口: kind=exe",
+                  kind == "exe" and entry.name == "CbmLogextractor.exe", str(entry))
+            log_dir = tdir / "logs"
+            log_dir.mkdir(exist_ok=True)
+            runner_exe = FakeRunner()
+            offline.extract_report(log_dir, jobs=2, runner=runner_exe)
+            argv_exe = runner_exe.calls[0]
+            check("exe 入口: argv[0]=exe, 无解释器",
+                  argv_exe[0].endswith("CbmLogextractor.exe") and argv_exe[1] == "all"
+                  and argv_exe[2:4] == ["--jobs", "2"], str(argv_exe))
+            (tdir / "z.py").rename(tdir / "logextract.py")
+            check("两种入口并存: 源码优先", offline.tool_entry()[1] == "py")
+            (tdir / "CbmLogextractor.exe").unlink()
+            check("删除 exe 后源码仍可用", offline.tool_entry()[1] == "py")
+
             # ── [2] argv 构造 ──
             log_dir = tdir / "logs"
-            log_dir.mkdir()
+            log_dir.mkdir(exist_ok=True)
             runner = FakeRunner()
             report = offline.extract_report(log_dir, runner=runner)
             argv = runner.calls[0]
