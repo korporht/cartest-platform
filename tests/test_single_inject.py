@@ -13,9 +13,11 @@
   [6] 循环灌入（2026-10-15）：repeat=N 轮 + on_round + 间隔可打断 + repeat=0 不限 +
       页面次数透传 / _parse_repeat / 多次落卡
   [7] 失败即停（2026-10-19）：fail_fast 下首败即停（停因 fail_fast）；关闭时失败照常
-      继续（行为不回归）；pass 不误停；手动停止原因优先；页面勾选透传 + 收尾提示
+      继续（行为不回归）；pass 不误停；手动停止原因优先；页面固定默认开启 + 收尾提示
   [8] 顺序执行（2026-10-19）：queries 逐条灌入（轮数=用例数、忽略 repeat）+ on_round +
-      间隔可停 + fail_fast 第 N 条即停 + 空 queries 拒绝；页面导入用例/列表/顺序执行
+      间隔可停 + fail_fast 第 N 条即停 + 空 queries 拒绝；页面加载用例/列表/顺序执行
+  [9] 用例文件加载入口（2026-10-19 修订）：只保留「浏览…」（选中即自动加载，无「导入」
+      按钮）；非用例文件（不存在 / 文件夹 / 后缀不符 / 解析失败）清空列表 + 报错 + 不落盘
 
 用法:
     python tests/test_single_inject.py
@@ -285,6 +287,21 @@ def main() -> int:
         tab._field.value = ""
         tab._pick_history()
         check("历史选中回填输入框", tab._field.value == "打开空调")
+
+        # 历史清空按钮（内存 + 下拉 + 落盘文件）
+        check("有历史时清空按钮可用", tab._btn_clear_history.disabled is False)
+        tab._clear_history()
+        check("清空历史 → 列表/下拉/文件一并清空 + 按钮置灰",
+              not tab._history and not tab._history_dd.options
+              and tab._history_dd.value is None
+              and not (tmp / "hist.json").exists()
+              and tab._btn_clear_history.disabled is True,
+              f"hist={tab._history} exists={(tmp / 'hist.json').exists()}")
+        tab._add_history("导航去公司")
+        check("新增历史后清空按钮恢复可用",
+              tab._btn_clear_history.disabled is False
+              and any(o.key == "导航去公司" for o in tab._history_dd.options))
+        tab._clear_history()                 # 收尾，避免影响后续断言
         check("save/restore_state 不丢记录",
               len(tab.save_state()["records"]) == 1
               and (tab.restore_state(tab.save_state()) or True))
@@ -541,8 +558,9 @@ def main() -> int:
               str(len(tab4._records)))
         check("无「失败即停」复选框（默认行为）",
               not hasattr(tab4, "_failfast_cb"))
-        check("语义模式偏好落盘（single_inject_mode）",
-              ctx3.cfg.get("single_inject_mode") == "3", str(ctx3.cfg.d))
+        check("无语义模式偏好落盘（控件已删除）",
+              not hasattr(tab4, "_mode_dd")
+              and ctx3.cfg.get("single_inject_mode") is None, str(ctx3.cfg.d))
         check("收尾提示「失败即停」而非常规汇总",
               any("失败即停" in tx for tx, _ in ctx3.done)
               and not any("循环灌入完成" in tx for tx, _ in ctx3.done),
@@ -633,7 +651,7 @@ def main() -> int:
     check("空 query + 全空白 queries → 拒绝",
           svc15.run("", queries=[" ", ""]) is False)
 
-    # [8e] 语义模式接线：voice_mode 透传到 send_voice（不再是假控件）
+    # [8e] 内核仍支持 voice_mode 参数（页面已不暴露；默认 3）
     adb_mode = _FakeAdb()
     svc_mode = SingleInjectService(adb=adb_mode, judger_factory=_FakeJudger,
                                    monitor_factory=_FakeMonitor)
@@ -641,19 +659,20 @@ def main() -> int:
     deadline = time.time() + 10
     while svc_mode.busy and time.time() < deadline:
         time.sleep(0.05)
-    check("voice_mode=1 → send_voice 收到 mode=1",
+    check("内核 voice_mode=1 → send_voice 收到 mode=1（保留底层能力）",
           adb_mode.modes == [1], str(adb_mode.modes))
 
-    # [8f] 页面：用例/结果 双 tab（chips + 常驻槽）+ 语义模式下拉读取
+    # [8f] 页面：用例/结果 双 tab（chips + 常驻槽）+ 无语义模式控件
     tab_src_tab = (ROOT / "cartest" / "app" / "tools"
                    / "single_inject_tab.py").read_text(encoding="utf-8")
     check("用例/结果 双 tab（chips + 常驻槽 visible 切换）",
           "_switch_view" in tab_src_tab and "_rebuild_chips" in tab_src_tab
           and "_cases_slot" in tab_src_tab and "_results_slot" in tab_src_tab
           and "components.chip" in tab_src_tab)
-    check("语义模式接线（页面 _voice_mode → Service voice_mode）",
-          "def _voice_mode" in tab_src_tab and "voice_mode=voice_mode" in tab_src_tab
-          and "single_inject_mode" in tab_src_tab)
+    check("语义模式控件已删除（页面不再透传 voice_mode）",
+          "_mode_dd" not in tab_src_tab and "_voice_mode" not in tab_src_tab
+          and "single_inject_mode" not in tab_src_tab
+          and "voice_mode=" not in tab_src_tab)
 
     # [8e] 页面：导入用例 → 列表 → 指定用例 → 顺序执行 → 结果卡片
     ok8p, err8p = True, ""
@@ -720,6 +739,88 @@ def main() -> int:
         ok8p, err8p = False, f"{type(ex).__name__}: {ex}"
     check("页面顺序执行整体（导入/列表/指定/执行/清空）", ok8p, err8p)
 
+    # [9] 用例文件加载入口：无「导入」按钮 + 非用例文件兜底
+    ok9, err9 = True, ""
+    try:
+        ctx9 = _StubCtx()
+        tab9 = SingleInjectTab(ctx9)
+        tab9._svc = SingleInjectService(adb=_FakeAdb(), judger_factory=_FakeJudger,
+                                        monitor_factory=_FakeMonitor)
+        tab9.build()
+        tmp9 = Path(mkdtemp(prefix="inject_badcase_"))
+
+        good = tmp9 / "cases.txt"
+        good.write_text("打开空调\n播放音乐\n", encoding="utf-8")
+        tab9._case_path_field.value = str(good)
+        tab9._import_cases()
+        check("浏览选中即加载（无需「导入」按钮）",
+              len(tab9._cases) == 2 and tab9._btn_seq.disabled is False
+              and not hasattr(tab9, "_btn_import"),
+              f"cases={len(tab9._cases)}")
+
+        # ① 后缀不是用例文件 → 清空 + 红字 + 不落盘（仍留旧路径值，便于用户改正）
+        bad = tmp9 / "logcat.txt.log"
+        bad.write_text("xx", encoding="utf-8")
+        tab9._case_path_field.value = str(bad)
+        tab9._import_cases()
+        check("非用例后缀 → 清空列表 + 报错 + 顺序执行禁用",
+              not tab9._cases and tab9._btn_seq.disabled is True
+              and ctx9.status and ctx9.status[-1][1] == "danger"
+              and "不是用例文件" in ctx9.status[-1][0],
+              str(ctx9.status[-1:]))
+        check("非用例文件不写入历史路径（仍为上一次好文件）",
+              ctx9.cfg.get("single_inject_case_file") == str(good),
+              str(ctx9.cfg.d))
+
+        # ② 路径不存在
+        tab9._case_path_field.value = str(tmp9 / "nope.csv")
+        tab9._import_cases()
+        check("路径不存在 → 清空 + 提示路径不存在",
+              not tab9._cases and "路径不存在" in ctx9.status[-1][0],
+              str(ctx9.status[-1:]))
+
+        # ③ 传的是文件夹
+        tab9._case_path_field.value = str(tmp9)
+        tab9._import_cases()
+        check("文件夹 → 清空 + 提示这是文件夹",
+              not tab9._cases and "文件夹" in ctx9.status[-1][0],
+              str(ctx9.status[-1:]))
+
+        # ④ 后缀对但内容坏（空 txt / 损坏 xlsx）→ 解析失败也要清空
+        empty = tmp9 / "empty.txt"
+        empty.write_text("\n\n", encoding="utf-8")
+        tab9._case_path_field.value = str(empty)
+        tab9._import_cases()
+        check("空用例文件 → 清空 + 解析失败提示",
+              not tab9._cases and "解析失败" in ctx9.status[-1][0],
+              str(ctx9.status[-1:]))
+        broken = tmp9 / "broken.xlsx"
+        broken.write_bytes(b"not a zip")
+        tab9._case_path_field.value = str(broken)
+        tab9._import_cases()
+        check("损坏 xlsx 不抛异常 → 清空 + 读取/解析失败提示",
+              not tab9._cases and ctx9.status[-1][1] == "danger",
+              str(ctx9.status[-1:]))
+
+        # ⑤ 启动回填 quiet：坏路径静默清空，不刷红
+        before = len(ctx9.status)
+        tab9._case_path_field.value = str(tmp9 / "gone.json")
+        tab9._import_cases(quiet=True)
+        check("启动回填 quiet → 静默清空不报错",
+              not tab9._cases and len(ctx9.status) == before,
+              str(ctx9.status[before:]))
+
+        # ⑥ 清空 → 同时忘掉历史路径（否则重启又自动加载）
+        tab9._case_path_field.value = str(good)
+        tab9._import_cases()
+        tab9._clear_cases()
+        check("清空用例 → 历史路径一并清除",
+              not tab9._cases and not (ctx9.cfg.get("single_inject_case_file") or ""),
+              str(ctx9.cfg.d))
+    except Exception as ex:  # noqa: BLE001
+        ok9, err9 = False, f"{type(ex).__name__}: {ex}"
+    check("用例文件加载入口（浏览即加载 / 非用例文件兜底 / 清空忘路径）", ok9, err9)
+
     tab_src8 = (ROOT / "cartest" / "app" / "tools"
                 / "single_inject_tab.py").read_text(encoding="utf-8")
     check("浏览功能合规（async + await pick_files + 不碰 overlay）",
@@ -729,6 +830,12 @@ def main() -> int:
           and ".overlay.remove(" not in tab_src8)
     check("「循环间隔」已改名「间隔」（循环/顺序共用）",
           'label="间隔(秒)"' in tab_src8 and "循环间隔(秒)" not in tab_src8)
+    check("「导入」按钮已删除 + 非用例文件前缀白名单",
+          "_btn_import" not in tab_src8 and "UPLOAD_FILE" not in tab_src8
+          and "_CASE_EXTS" in tab_src8 and "_reject_cases" in tab_src8)
+    check("历史下拉旁有清空按钮（icon + 空态置灰）",
+          "_btn_clear_history" in tab_src8 and "def _clear_history" in tab_src8
+          and "DELETE_SWEEP" in tab_src8 and "unlink(missing_ok=True)" in tab_src8)
 
     print()
     print("=" * 70)

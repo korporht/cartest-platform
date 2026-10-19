@@ -64,7 +64,7 @@ def _safe_update(ctl) -> None:
         pass
 
 
-def _safe_on_main(page, fn) -> None:
+def _safe_on_main(page, fn) -> bool:
     """控件树变更调度：非主线程调用时经 ``page.run_task`` 回主线程执行
 
     2026-09-23 崩溃修复（34 号文档）：工作线程直接 ``controls.append`` + ``update()``
@@ -72,6 +72,9 @@ def _safe_on_main(page, fn) -> None:
     ``_compare_lists`` ``IndexError: list index out of range`` → **整应用崩溃**。
     ``page.run_task`` = ``run_coroutine_threadsafe``（任何线程可安全投递），
     回主线程后与事件循环串行，竞争窗口消除。
+
+    返回 ``False`` 仅表示**投递失败**（会话已销毁，如 Web 页面关闭/实例重启）；
+    回调自身异常只记日志、不影响返回值。后台轮询可据此退出线程。
     """
     if threading.current_thread() is threading.main_thread():
         try:
@@ -79,7 +82,7 @@ def _safe_on_main(page, fn) -> None:
         except Exception as ex:  # noqa: BLE001
             log.warning("on_main(inline) 回调异常 %s: %r",
                         getattr(fn, "__qualname__", fn), ex)
-        return
+        return True
 
     async def _go() -> None:
         try:
@@ -93,6 +96,8 @@ def _safe_on_main(page, fn) -> None:
     except Exception as ex:  # noqa: BLE001
         log.warning("on_main(run_task) 投递失败 %s: %r",
                     getattr(fn, "__qualname__", fn), ex)
+        return False
+    return True
 
 
 class _OpHandle:

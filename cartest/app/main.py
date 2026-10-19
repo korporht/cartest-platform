@@ -375,7 +375,8 @@ def main(page: ft.Page, *, state: AppState | None = None) -> None:
                 cur = state.refresh_devices()
             except Exception:  # noqa: BLE001
                 continue
-            _safe_on_main(page, lambda c=list(cur): _on_devices_polled(c))
+            if not _safe_on_main(page, lambda c=list(cur): _on_devices_polled(c)):
+                return          # 会话已销毁（Web 关闭/实例重启）→ 结束后台轮询
 
     def _pick_device(dev: str) -> None:
         page.pop_dialog()

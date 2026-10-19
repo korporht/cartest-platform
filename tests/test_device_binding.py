@@ -127,6 +127,9 @@ def main() -> int:
           "def _device_poll_loop" in main_src
           and "Thread(target=_device_poll_loop" in main_src
           and "time.sleep(5.0)" in main_src)
+    check("main：会话销毁（投递失败）时轮询线程退出，不刷 WARNING",
+          "if not _safe_on_main(page, lambda c=list(cur): _on_devices_polled(c)):"
+          in main_src and "return          # 会话已销毁" in main_src)
     check("main：防抢切（当前设备属于方案时不联动设备）",
           "state.device in project_mod.scheme_devices(key)" in main_src)
     check("main：自动切换写操作日志",
